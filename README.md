@@ -56,7 +56,7 @@ $ cd labsd
 ### Servidor
 
 Na primeira execução do servidor, adicione um arquivo chamado _zoo.cfg_ (cujo conteúdo está presente na raiz deste
-repositório) no diretório _apache-zookeeper-3.9.3-bin/conf_, extraído no passo 2 da seção Configuração.
+repositório) no diretório _apache-zookeeper-3.9.3-bin/conf_, extraído no passo 1 da seção Configuração.
 
 Rode o seguinte comando em um _prompt_ de comando separado:
 
