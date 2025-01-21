@@ -119,7 +119,7 @@ public class Main {
                     }
                     System.out.println("+-----------------------+");
                 } else {
-                    // Atualiza listagem de jogadores e retorna quantos jogadores estavam esperando há 5 segundos
+                    // Atualiza listagem de jogadores e retorna quantos jogadores estavam esperando na última consulta
                     final Map<String, String> previousPlayers = playersReference.getAndSet(currentPlayers);
 
                     // Quando jogadores entram
