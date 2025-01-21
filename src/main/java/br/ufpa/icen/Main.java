@@ -1,6 +1,7 @@
 package br.ufpa.icen;
 
 import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,9 +28,11 @@ public class Main {
         }
 
         public void initialize() throws KeeperException, InterruptedException {
+            // https://zookeeper.apache.org/doc/r3.1.2/zookeeperTutorial.html#sc_barriers
             // Cria um novo nó no ZooKeeper, caso ainda não exista
-            if (zooKeeper.exists(HUB_PATH, true) == null) {
-                zooKeeper.create(HUB_PATH, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            final Stat stat = zooKeeper.exists(HUB_PATH, true);
+            if (stat == null) {
+                zooKeeper.create(HUB_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
             }
             // Aguarda a conexão ser estabelecida com sucesso
             latch.await();
