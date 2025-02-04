@@ -1,0 +1,85 @@
+package br.ufpa.icen;
+
+import java.util.*;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+
+public class Hub {
+
+	  private int numJogadores;
+	    private CyclicBarrier barreira1;
+	    private CyclicBarrier barreira2;
+	    private Map<Integer, String> jogadores = new HashMap<>();
+
+	    public Hub(int numJogadores) {
+	        this.numJogadores = numJogadores;
+	        this.barreira1 = new CyclicBarrier(numJogadores, () -> {
+	            System.out.println("Todos os jogadores passaram pela barreira 1!");
+	            resetBarrier(1); // Reseta a barreira 1
+	        });
+	        this.barreira2 = new CyclicBarrier(numJogadores, () -> {
+	            System.out.println("Todos os jogadores passaram pela barreira 2!");
+	            resetBarrier(2); // Reseta a barreira 2
+	        });
+	    }
+
+	    public void iniciarJogo() {
+	        ExecutorService executor = Executors.newFixedThreadPool(numJogadores);
+	        Scanner scanner = new Scanner(System.in);
+
+	        for (int i = 0; i < numJogadores; i++) {
+	            final int jogadorId = i + 1;
+	            System.out.println("Jogador " + jogadorId + ", insira seu nome:");
+	            String nomeJogador = scanner.nextLine();
+	            jogadores.put(jogadorId, nomeJogador);
+
+	            executor.submit(() -> {
+	                try {
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 1.");
+	                    barreira1.await();
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 1. Caminhabd...");
+	                    Thread.sleep(2000);
+
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 2.");
+	                    barreira2.await();
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 2. Fazendo algo...");
+	                    Thread.sleep(2000);
+
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") completou todas as barreiras!");
+	                } catch (InterruptedException | BrokenBarrierException e) {
+	                    e.printStackTrace();
+	                }
+	            });
+	        }
+
+	        executor.shutdown();
+	    }
+
+	    private void resetBarrier(int barrierNumber) {
+	        if (barrierNumber == 1) {
+	            barreira1 = new CyclicBarrier(numJogadores, () -> {
+	                System.out.println("Todos os jogadores passaram pela barreira 1!");
+	                resetBarrier(1); // Reseta a barreira 1
+	            });
+	        } else if (barrierNumber == 2) {
+	            barreira2 = new CyclicBarrier(numJogadores, () -> {
+	                System.out.println("Todos os jogadores passaram pela barreira 2!");
+	                resetBarrier(2); // Reseta a barreira 2
+	            });
+	        }
+	        System.out.println("Barreira " + barrierNumber + " resetada.");
+	    }
+
+	    public static void main(String[] args) {
+	        Scanner scanner = new Scanner(System.in);
+	        System.out.println("Quantos jogadores vão participar do jogo?");
+	        int numJogadores = scanner.nextInt();
+	        scanner.nextLine();
+
+	        Hub jogo = new Hub(numJogadores);
+	        jogo.iniciarJogo();
+	    }
+    }
