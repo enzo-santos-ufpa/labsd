@@ -40,12 +40,12 @@ public class Hub {
 	                try {
 	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 1.");
 	                    barreira1.await();
-	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 1. Caminhabd...");
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 1. Caminhando...");
 	                    Thread.sleep(2000);
 
 	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 2.");
 	                    barreira2.await();
-	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 2. Fazendo algo...");
+	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 2. Caminhabdo...");
 	                    Thread.sleep(2000);
 
 	                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") completou todas as barreiras!");
