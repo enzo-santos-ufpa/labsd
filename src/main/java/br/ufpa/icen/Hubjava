@@ -1,0 +1,125 @@
+package br.ufpa.icen;
+
+import org.apache.zookeeper.*;
+import org.apache.zookeeper.data.Stat;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
+
+public class Hub {
+
+    private static final String ZOOKEEPER_ADDRESS = "localhost:2181";
+    private static final int SESSION_TIMEOUT = 3000;
+    private static final String HUB_PATH = "/gameHubBarrier";
+    private static final String BARRIER1_PATH = HUB_PATH + "/barrier1";
+    private static final String BARRIER2_PATH = HUB_PATH + "/barrier2";
+
+    private final ZooKeeper zooKeeper;
+    private int numJogadores;
+    private Map<Integer, String> jogadores = new HashMap<>();
+    private final CountDownLatch latch = new CountDownLatch(1);
+    private final AtomicReference<Map<String, String>> playersReference = new AtomicReference<>();
+
+    public Hub(int numJogadores) throws IOException {
+        this.numJogadores = numJogadores;
+        zooKeeper = new ZooKeeper(ZOOKEEPER_ADDRESS, SESSION_TIMEOUT, this);
+    }
+
+    public void inicializar() throws KeeperException, InterruptedException {
+        Stat stat = zooKeeper.exists(HUB_PATH, true);
+        if (stat == null) {
+            zooKeeper.create(HUB_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
+        criarBarreira1(BARRIER1_PATH);
+        criarbarreira2(BARRIER2_PATH);
+
+        latch.await();
+        zooKeeper.getChildren(HUB_PATH, true);
+    }
+
+    private void criarBarreira(String barrierPath) throws KeeperException {
+        Stat stat = zooKeeper.exists(barrierPath, true);
+        if (stat == null) {
+            zooKeeper.create(barrierPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
+    }
+
+    public void iniciarJogo() throws InterruptedException, KeeperException {
+        ExecutorService executor = Executors.newFixedThreadPool(numJogadores);
+        Scanner scanner = new Scanner(System.in);
+
+        for (int i = 0; i < numJogadores; i++) {
+            final int jogadorId = i + 1;
+            System.out.println("Jogador " + jogadorId + ", insira seu nome:");
+            String nomeJogador = scanner.nextLine();
+            jogadores.put(jogadorId, nomeJogador);
+
+            executor.submit(() -> {
+                try {
+                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 1.");
+                    enterBarrier(1);
+                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 1. Caminhando...");
+                    Thread.sleep(2000);
+
+                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") está pronto e esperando na barreira 2.");
+                    enterBarrier(2);
+                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") passou pela barreira 2. Caminhando...");
+                    Thread.sleep(2000);
+
+                    System.out.println(jogadores.get(jogadorId) + " (Jogador " + jogadorId + ") completou todas as barreiras!");
+                } catch (InterruptedException | KeeperException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        executor.shutdown();
+    }
+
+    public void EntrarNaBarreira(int barrierNumber) throws KeeperException, InterruptedException {
+        String barrierPath = (barrierNumber == 1) ? BARRIER1_PATH : BARRIER2_PATH;
+        String playerNode = zooKeeper.create(barrierPath + "/player_", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+
+        while (true) {
+            List<String> children = zooKeeper.getChildren(barrierPath, true);
+            if (children.size() == numJogadores) {
+                break;
+            }
+            Thread.sleep(100);
+        }
+        System.out.println("Jogador " + Thread.currentThread().getName() + " passou pela barreira " + barrierNumber);
+    }
+
+    public void close() throws InterruptedException {
+        zooKeeper.close();
+    }
+
+    @Override
+    public void processando(WatchedEvent event) {
+        // Lógica para lidar com eventos do ZooKeeper, se necessário.
+        if (event.getPath() == null) {
+            if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
+                latch.countDown();
+            }
+            return;
+        }
+    }
+
+
+    public static void main(String[] args) throws InterruptedException, KeeperException, IOException {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Quantos jogadores vão participar do jogo?");
+        int numJogadores = scanner.nextInt();
+        scanner.nextLine();
+
+        Hub jogo = new Hub(numJogadores);
+        jogo.initialize();
+        jogo.iniciarJogo();
+        jogo.close();
+    }
+}
