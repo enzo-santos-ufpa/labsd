@@ -14,6 +14,10 @@ public class ZooKeeperBarrier {
     private final String barrierNode;
     private final CountDownLatch latch = new CountDownLatch(1);
 
+    protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
+        return new ZooKeeper(connectString, 3000, watcher);
+    }
+
     /**
      * Inicializa a barreira do ZooKeeper.
      *
@@ -23,7 +27,7 @@ public class ZooKeeperBarrier {
      */
     public ZooKeeperBarrier(String connectString, String barrierNode) throws IOException {
     	this.barrierNode = barrierNode;
-    	this.zk = new ZooKeeper(connectString, 3000, event -> {
+    	this.zk = createZooKeeperConnection(connectString, event -> {
     		 if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
                  latch.countDown();
              }
