@@ -28,7 +28,7 @@ public class ZooKeeperBarrierTest {
     }
 
     @Test
-    public void testWaitForBarrier_QuandoNóExiste_DeveAguardarPorRemoção() throws Exception {
+    public void testWaitForBarrier_QuandoNoExiste_DeveAguardarPorRemocao() throws Exception {
         // Cenário onde outro cliente já está ocupando a barreira
         zk.create(BARRIER_NODE_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 
@@ -52,7 +52,7 @@ public class ZooKeeperBarrierTest {
     }
 
     @Test
-    public void testWaitForBarrier_QuandoNóNãoExiste_DeveProsseguir() throws Exception {
+    public void testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir() {
         // Como o nó de barreira não existe, o cliente não precisa esperar
         final Future<Void> future = CompletableFuture.runAsync(() -> {
             try {
@@ -66,22 +66,22 @@ public class ZooKeeperBarrierTest {
     }
 
     @Test
-    public void testRemoveBarrier_QuandoNóExiste_DeveRemoverNó() throws Exception {
+    public void testRemoveBarrier_QuandoNoExiste_DeveRemoverNo() throws Exception {
         // Cenário onde um cliente já está ocupando a barreira
         zk.create(BARRIER_NODE_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
 
-        // Chamar o método para remover o nó
+        // Chamar o metodo para remover o nó
         barrier.removeBarrier();
         Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
     }
 
     @Test
-    public void testRemoveBarrier_QuandoNóNãoExiste_DeveFazerNada() throws Exception {
+    public void testRemoveBarrier_QuandoNoNaoExiste_DeveFazerNada() throws Exception {
         // Cenário onde ninguém está ocupando a barreira
         Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
 
-        // Chamar o método para remover o nó
+        // Chamar o metodo para remover o nó
         barrier.removeBarrier();
         Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
     }

@@ -9,10 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
@@ -40,7 +38,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testEnterBarrier_QuandoPrimeiroNóNaBarreira_DeveCriarNóPróprioEAguardarPorNóReady() throws Exception {
+    public void testEnterBarrier_QuandoPrimeiroNoNaBarreira_DeveCriarNoProprioEAguardarPorNoReady() throws Exception {
         Assertions.assertNull(zk.exists(BARRIER_NODE_PATH + "/ready", false));
         Assertions.assertNull(zk.exists(BARRIER_NODE_PATH + "/" + barrier.getId(), false));
         final Future<Void> future = CompletableFuture.runAsync(() -> {
@@ -73,7 +71,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testEnterBarrier_QuandoUltimoNóNaBarreira_DeveCriarNóPróprioENóReady() throws Exception {
+    public void testEnterBarrier_QuandoUltimoNoNaBarreira_DeveCriarNoProprioENoReady() throws Exception {
         // Simula a criação de 2 nós
         for (int n = 1; n <= 2; n++) {
             final String id = UUID.randomUUID().toString();
@@ -102,7 +100,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testExitBarrier_QuandoBarreiraEstiverVazia_DeveProsseguir() throws Exception {
+    public void testExitBarrier_QuandoBarreiraEstiverVazia_DeveProsseguir() {
         final Future<Void> future = CompletableFuture.runAsync(() -> {
             try {
                 barrier.exitBarrier();
@@ -114,7 +112,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testExitBarrier_QuandoÚnicoNóNaBarreira_DeveRemoverNóEProsseguir() throws Exception {
+    public void testExitBarrier_QuandoUnicoNoNaBarreira_DeveRemoverNoEProsseguir() throws Exception {
         // Simula próprio nó já existente
         zk.create(
                 BARRIER_NODE_PATH + "/" + barrier.getId(),
@@ -137,7 +135,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testExitBarrier_QuandoNóMaisAntigoNaBarreira_DeveAguardarNóMaisRecenteEProsseguir() throws Exception {
+    public void testExitBarrier_QuandoNoMaisAntigoNaBarreira_DeveAguardarNoMaisRecenteEProsseguir() throws Exception {
         final LocalDateTime now = LocalDateTime.now();
         // Simula próprio nó já existente, mais antigo
         zk.create(
@@ -180,7 +178,7 @@ public class ZooKeeperDoubleBarrierTest {
     }
 
     @Test
-    public void testExitBarrier_QuandoNóMaisRecenteNaBarreira_DeveAguardarNóMaisAntigoEProsseguir() throws Exception {
+    public void testExitBarrier_QuandoNoMaisRecenteNaBarreira_DeveAguardarNoMaisAntigoEProsseguir() throws Exception {
         final LocalDateTime now = LocalDateTime.now();
         // Simula próprio nó já existente, mais recente
         zk.create(
