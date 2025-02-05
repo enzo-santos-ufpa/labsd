@@ -16,9 +16,9 @@ public class ZooKeeperBarrier {
 
     /**
      * Inicializa a barreira do ZooKeeper.
-     * 
+     *
      * @param connectString String de conexão com o ZooKeeper.
-     * @param barrierNode Caminho do nó da barreira.
+     * @param barrierNode   Caminho do nó da barreira.
      * @throws IOException se a conexão falhar.
      */
     public ZooKeeperBarrier(String connectString, String barrierNode) throws IOException {
@@ -32,8 +32,8 @@ public class ZooKeeperBarrier {
 
     /**
      * Aguarda até que a barreira seja removida.
-     * 
-     * @throws KeeperException se o ZooKeeper encontrar um erro.
+     *
+     * @throws KeeperException      se o ZooKeeper encontrar um erro.
      * @throws InterruptedException se a thread for interrompida.
      */
     public void waitForBarrier() throws KeeperException, InterruptedException {
@@ -48,8 +48,8 @@ public class ZooKeeperBarrier {
 
     /**
      * Remove o nó da barreira.
-     * 
-     * @throws KeeperException se o ZooKeeper encontrar um erro.
+     *
+     * @throws KeeperException      se o ZooKeeper encontrar um erro.
      * @throws InterruptedException se a thread for interrompida.
      */
     public void removeBarrier() throws KeeperException, InterruptedException {
@@ -61,7 +61,7 @@ public class ZooKeeperBarrier {
 
     /**
      * Fecha a conexão com o ZooKeeper.
-     * 
+     *
      * @throws InterruptedException se a thread for interrompida.
      */
     public void close() throws InterruptedException {
