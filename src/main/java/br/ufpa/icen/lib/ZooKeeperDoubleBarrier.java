@@ -39,16 +39,21 @@ public class ZooKeeperDoubleBarrier {
         this.barrierNode = barrierNode;
         this.exitLatch = null;
         this.zk = createZooKeeperConnection(connectString, event -> {
+            // Se um nó /ready for criado (ou seja, se o último cliente entrar na barreira),
+            // libere este cliente para prosseguir com o seu processamento (`enterLatch`)
             if (event.getType() == Watcher.Event.EventType.NodeCreated) {
                 if (event.getPath().equals(barrierNode + "/ready")) {
                     enterLatch.countDown();
                 }
+            // Se um nó for removido (ou seja, se um cliente terminar seu processamento
+            // na barreira), libere este cliente para sair da barreira (`exitLatch`)
             } else if (event.getType() == Watcher.Event.EventType.NodeDeleted) {
                 if (exitLatch != null) {
                     exitLatch.countDown();
                 }
             }
         });
+        // Cria o nó de barreira
         zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
     }
 
@@ -59,7 +64,6 @@ public class ZooKeeperDoubleBarrier {
      * @throws InterruptedException se a thread for interrompida.
      */
     public void enterBarrier() throws KeeperException, InterruptedException {
-        System.out.println("0");
         // 1. Create a name n = b+"/"+p
         final String n = barrierNode + "/" + id;
         // 2. Set watch: exists(b + "/ready", true)
@@ -122,8 +126,6 @@ public class ZooKeeperDoubleBarrier {
                     // - o nó mais antigo criado (lowest) está na primeira posição (entries.get(0))
                     // - o nó mais recente criado (highest) está na última posição (entries.get(entries.size() - 1))
                     .collect(Collectors.toList());
-            System.out.println("[id] = " + id);
-            System.out.println("[children] = " + children);
             // 2. if no children, exit
             if (children.isEmpty()) {
                 return;
