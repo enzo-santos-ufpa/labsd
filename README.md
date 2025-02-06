@@ -4,11 +4,9 @@
 
 Os requisitos do projeto são:
 
-- ZooKeeper (versão 3.9.3), acessível por
-  meio [deste link](https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3-bin.tar.gz)
-- Maven (versão 3.9.9), acessível por
-  meio [deste link](https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz)
-- Java (versão 11), acessível por meio [deste link](https://www.java.com/pt-BR/download/manual.jsp)
+- ZooKeeper (versão 3.9.3), acessível via [Apache](https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3-bin.tar.gz)
+- Maven (versão 3.9.9), acessível via [Apache](https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz)
+- Java (versão 11), acessível via [Oracle](https://www.java.com/pt-BR/download/manual.jsp)
 
 Passos:
 
