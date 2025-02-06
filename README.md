@@ -111,7 +111,21 @@ A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponí
 processamento, e `exitBarrier`, utilizado pelo cliente para sair da barreira e possivelmente aguardar outros clientes 
 terminarem o processamento.
 
-Note que, apesar do nome, existe apenas um nó que realiza essa implementação no ZooKeeper. A parte "dupla" vem do fato que existem duas sincronizações entre todos os clientes que estão neste nó raiz: uma ao entrar na barreira e outra ao sair.
+Note que, apesar do nome, existe apenas um nó que realiza essa implementação no ZooKeeper. A parte "dupla" vem do fato que existem duas sincronizações entre todos os clientes que estão neste nó raiz: uma ao entrar na barreira e outra ao sair. Isso é perceptível ao notar que na implementação existem dois _latches_:
+
+```java
+this.zk = createZooKeeperConnection(connectString, event -> {
+    if (event.getType() == Watcher.Event.EventType.NodeCreated) {
+        if (event.getPath().equals(barrierNode + "/ready")) {
+            enterLatch.countDown();
+        }
+    } else if (event.getType() == Watcher.Event.EventType.NodeDeleted) {
+        if (exitLatch != null) {
+            exitLatch.countDown();
+        }
+    }
+});
+```
 
 Supondo que cada cliente possui uma tarefa a ser feita (como extrair informações de uma planilha), existem quatro etapas de vida para cada um:
 
