@@ -68,12 +68,45 @@ Passos:
 <!-- TOC --><a name="barreira-simples"></a>
 ### Barreira simples
 
-TBA
+A classe `br.ufpa.icen.lib.ZooKeeperBarrier` possui um método disponível: `waitForBarrier`, utilizado pelo cliente
+para entrar na barreira e possivelmente aguardar até ela ser removida.
+
+Existem apenas duas situações para esse tipo de barreira:
+
+1. O cliente tenta acessar a barreira e ela **não existe**: ele prossegue com sucesso.
+2. O cliente tenta acessar a barreira e ela **existe**: ele aguarda até que a barreira seja removida.
+
+A barreira aqui é implementada simplesmente com um nó no ZooKeeper. Caso o cliente realize a leitura desse
+nó e ele existe, ele aguarda até que o ZooKeeper envia um evento de remoção para esse nó, prosseguindo com sua execução.
+
+```java
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    while (true) {
+        Stat stat = zk.exists(barrierNode, true);
+        if (stat == null) {
+            return; // A barreira foi removida, pode prosseguir
+        }
+        latch.await(); // Aguarda até que o nó seja excluído
+    }
+}
+```
+
+onde o `latch` é definido com um contador 1 e atualizado no construtor da classe:
+
+```java
+this.zk = createZooKeeperConnection(connectString, event -> {
+    if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
+        latch.countDown();
+    }
+});
+```
+
+O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que aje como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
 
 <!-- TOC --><a name="barreira-dupla"></a>
 ### Barreira dupla
 
-A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponíveis para teste:
+A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponíveis:
 `enterBarrier`, utilizado pelo cliente para entrar na barreira e possivelmente aguardar outros clientes iniciarem o
 processamento, e `exitBarrier`, utilizado pelo cliente para sair da barreira e possivelmente aguardar outros clientes 
 terminarem o processamento.
@@ -298,7 +331,28 @@ Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH + "/" + barrier.getId(), fa
 <!-- TOC --><a name="barreira-simples-1"></a>
 ### Barreira simples
 
-TBA
+Para a classe `ZooKeeperBarrier`, foi testado seu método principal, `waitForBarrier`.
+
+Os testes são:
+
+1. `testWaitForBarrier_QuandoNoExiste_DeveAguardarPorRemocao`
+
+Testa a entrada na barreira com um nó que já existe.
+
+- _Pré-condição:_ nó `/barreira` criado
+- _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ o cliente deve estar bloqueado
+- _Ação:_ nó `/barreira` é removido
+- _Verificação:_ cliente não deve mais estar bloqueado
+
+
+1. `testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir`
+
+Testa a entrada na barreira com um nó que não existe.
+
+- _Pré-condição:_ nó `/barreira` não criado
+- _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ o cliente deve não estar bloqueado
 
 <!-- TOC --><a name="barreira-dupla-1"></a>
 ### Barreira dupla
