@@ -26,9 +26,9 @@ public class ZooKeeperBarrier implements AutoCloseable {
      * @param barrierNode   Caminho do nó da barreira.
      * @throws IOException se a conexão falhar.
      */
-    public ZooKeeperBarrier(String connectString, String barrierNode) throws IOException {
+    public ZooKeeperBarrier(String connectString, String barrierNode) throws IOException, InterruptedException, KeeperException {
         this.barrierNode = barrierNode;
-        this.zk = new ZooKeeper(connectString, 3000, event -> {
+        this.zk = createZooKeeperConnection(connectString, event -> {
             if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
                 latch.countDown();
             }
@@ -68,6 +68,8 @@ public class ZooKeeperBarrier implements AutoCloseable {
                     } catch (InterruptedException | IOException e) {
                         logger.error("erro em entregador " + courierId + " ao criar barreira", e);
                         return;
+                    } catch (KeeperException e) {
+                        throw new RuntimeException(e);
                     }
                     System.out.println("Entregador " + courierId + " saiu para entrega!");
                 }));
@@ -98,6 +100,10 @@ public class ZooKeeperBarrier implements AutoCloseable {
         } catch (Exception e) {
             logger.error("erro ao inicializar programa", e);
         }
+    }
+
+    protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
+        return new ZooKeeper(connectString, 3000, watcher);
     }
 
     /**
