@@ -24,12 +24,12 @@ public class ZooKeeperBarrier implements AutoCloseable {
      * @throws IOException se a conexão falhar.
      */
     public ZooKeeperBarrier(String connectString, String barrierNode) throws IOException {
-    	this.barrierNode = barrierNode;
-    	this.zk = new ZooKeeper(connectString, 3000, event -> {
-    		 if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
-                 latch.countDown();
-             }
-        });        
+        this.barrierNode = barrierNode;
+        this.zk = new ZooKeeper(connectString, 3000, event -> {
+            if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
+                latch.countDown();
+            }
+        });
     }
 
     /**
