@@ -39,6 +39,76 @@ Passos:
     OS name: "windows 11", version: "10.0", arch: "amd64", family: "windows"
     ```
 
+## Testes
+
+Para construir os testes automatizados, foram utilizadas as bibliotecas
+
+- JUnit (versão 5.9.2), acessível via [Maven](https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-engine)
+- Curator Testing (versão 5.4.0), acessível
+  via [Maven](https://mvnrepository.com/artifact/org.apache.curator/curator-test)
+
+
+## Implementação
+
+### Barreira simples
+
+### Barreira dupla
+
+A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponíveis para teste:
+`enterBarrier`, utilizado pelo cliente para entrar na barreira e possivelmente aguardar outros clientes iniciarem o
+processamento, e `exitBarrier`, utilizado pelo cliente para sair da barreira e possivelmente aguardar outros clientes 
+terminarem o processamento.
+
+Supondo que cada cliente possui algo a ser feito (como ler uma planilha e extrair informações), existem quatro etapas de vida para cada um:
+
+1. **execução**: o cliente aguarda os demais clientes entrarem na primeira barreira; ocorre quando o processo do cliente iniciou com sucesso e já está na primeira barreira
+2. **processamento**: o cliente faz o que precisa ser feito; ocorre quando todos os clientes já estão na primeira barreira
+3. **finalização**: o cliente aguarda os demais clientes entrarem na segunda barreira; ocorre quando o cliente termina o que precisava ser feito
+4. **encerramento**: o cliente é encerrado; ocorre quando todos os clientes já estão na segunda barreira
+
+As etapas de sincronização são **execução** e **finalização**: todos os clientes entram em **processamento** e em **encerramento** ao mesmo tempo.
+
+Supondo que três clientes precisem realizar uma operação em conjunto com base em um nó `/barreira` que implementa barreiras duplas, o seguinte ocorre:
+
+#### Primeira barreira
+
+- O cliente C1 entra em **execução**, cria um nó `/barreira/C1`, verifica quantos nós já existem na barreira (apenas 1) e aguarda o nó `/ready` ser criado
+- O cliente C2 entra em **execução**, cria um nó `/barreira/C2`, verifica quantos nós já existem na barreira (2) e aguarda o nó `/ready` ser criado
+- O cliente C3 entra em **execução**, cria um nó `/barreira/C3`, verifica quantos nós já existem na barreira (3), e, por verificar que já atingiu a quantidade de nós esperada, cria o nó `/ready`
+- O ZooKeeper notifica todos os clientes da criação do nó `/ready` e os clientes entram em **processamento** assim que recebem esta notificação
+
+![image](https://github.com/user-attachments/assets/ffa34670-146d-413d-a747-8f98c5e21e8c)
+
+```java
+public void enterBarrier() throws KeeperException, InterruptedException {
+    // 1. Create a name n = b+"/"+p
+    final String n = barrierNode + "/" + id;
+
+    // 2. Set watch: exists(b + "/ready", true)
+    zk.exists(barrierNode + "/ready", true);
+
+    // 3. Create child: create( n, EPHEMERAL)
+    zk.create(n,
+        // Guarda a data de criação deste nó para consulta em `exitBarrier`
+        LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME).getBytes(StandardCharsets.UTF_8),
+        ZooDefs.Ids.OPEN_ACL_UNSAFE,
+        CreateMode.EPHEMERAL
+    );
+
+    // 4. L = getChildren(b, false)
+    final List<String> children = zk.getChildren(barrierNode, false);
+    if (children.size() < 3) {
+        // 5. if fewer children in L than x, wait for watch event
+        enterLatch.await();
+    } else {
+        // 6. else create(b + "/ready", REGULAR)
+        zk.create(barrierNode + "/ready", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+    }
+}
+```
+
+#### Segunda barreira
+
 ## Uso
 
 A aplicação implementa um _lobby_ de jogadores simples, onde cada cliente acompanha o _status_ do _hub_: quando um
