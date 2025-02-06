@@ -1,82 +1,149 @@
 package br.ufpa.icen.lib;
 
 import org.apache.zookeeper.*;
-import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 /**
- * Uma barreira dupla distribuída usando o Apache ZooKeeper.
+ * Uma barreira distribuída dupla usando o Apache ZooKeeper.
  */
-public class ZooKeeperDoubleBarrier {
+public class ZooKeeperDoubleBarrier implements AutoCloseable {
     private final ZooKeeper zk;
-    private final String barrierNode1;
-    private final String barrierNode2;
-    private final CountDownLatch latch1 = new CountDownLatch(1);
-    private final CountDownLatch latch2 = new CountDownLatch(1);
+    private final String barrierNode;
+    private final CountDownLatch enterLatch = new CountDownLatch(1);
+    private final String id = UUID.randomUUID().toString();
+    private CountDownLatch exitLatch;
 
     /**
      * Inicializa a barreira dupla do ZooKeeper.
      *
      * @param connectString String de conexão com o ZooKeeper.
-     * @param barrierNode1 Caminho do primeiro nó da barreira.
-     * @param barrierNode2 Caminho do segundo nó da barreira.
+     * @param barrierNode   Caminho do nó da barreira.
      * @throws IOException se a conexão falhar.
      */
-    public ZooKeeperDoubleBarrier(String connectString, String barrierNode1, String barrierNode2) throws IOException {
-        this.barrierNode1 = barrierNode1;
-        this.barrierNode2 = barrierNode2;
-        this.zk = new ZooKeeper(connectString, 3000, event -> {
-            if (event.getType() == Watcher.Event.EventType.NodeDeleted) {
-                if (event.getPath().equals(this.barrierNode1)) {
-                    latch1.countDown();
-                } else if (event.getPath().equals(this.barrierNode2)) {
-                    latch2.countDown();
+    public ZooKeeperDoubleBarrier(String connectString, String barrierNode) throws IOException, InterruptedException, KeeperException {
+        this.barrierNode = barrierNode;
+        this.exitLatch = null;
+        this.zk = createZooKeeperConnection(connectString, event -> {
+            // Se um nó /ready for criado (ou seja, se o último cliente entrar na barreira),
+            // libere este cliente para prosseguir com o seu processamento (`enterLatch`)
+            if (event.getType() == Watcher.Event.EventType.NodeCreated) {
+                if (event.getPath().equals(barrierNode + "/ready")) {
+                    enterLatch.countDown();
+                }
+                // Se um nó for removido (ou seja, se um cliente terminar seu processamento
+                // na barreira), libere este cliente para sair da barreira (`exitLatch`)
+            } else if (event.getType() == Watcher.Event.EventType.NodeDeleted) {
+                if (exitLatch != null) {
+                    exitLatch.countDown();
                 }
             }
         });
+        // Cria o nó de barreira
+        zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+    }
+
+    protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
+        return new ZooKeeper(connectString, 3000, watcher);
+    }
+
+    public String getId() {
+        return id;
     }
 
     /**
-     * Aguarda até que ambas as barreiras sejam removidas.
+     * Faz com que o cliente atual entre na barreira.
      *
-     * @throws KeeperException se o ZooKeeper encontrar um erro.
+     * @throws KeeperException      se o ZooKeeper encontrar um erro.
      * @throws InterruptedException se a thread for interrompida.
      */
-    public void waitForBarriers() throws KeeperException, InterruptedException {
-        while (true) {
-            Stat stat1 = zk.exists(barrierNode1, true);
-            Stat stat2 = zk.exists(barrierNode2, true);
-
-            if (stat1 == null && stat2 == null) {
-                return; // Ambas as barreiras foram removidas, pode prosseguir
-            }
-
-            if (stat1 != null) {
-                latch1.await(); // Aguarda até que o primeiro nó seja excluído
-            }
-            if (stat2 != null) {
-                latch2.await(); // Aguarda até que o segundo nó seja excluído
-            }
+    public void enterBarrier() throws KeeperException, InterruptedException {
+        // 1. Create a name n = b+"/"+p
+        final String n = barrierNode + "/" + id;
+        // 2. Set watch: exists(b + "/ready", true)
+        zk.exists(barrierNode + "/ready", true);
+        // 3. Create child: create( n, EPHEMERAL)
+        zk.create(n,
+                // Guarda a data de criação deste nó para consulta em `exitBarrier`
+                LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME).getBytes(StandardCharsets.UTF_8), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        // 4. L = getChildren(b, false)
+        final List<String> children = zk.getChildren(barrierNode, false);
+        if (children.size() < 3) {
+            // 5. if fewer children in L than x, wait for watch event
+            enterLatch.await();
+        } else {
+            // 6. else create(b + "/ready", REGULAR)
+            zk.create(barrierNode + "/ready", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
         }
     }
 
     /**
-     * Remove ambos os nós da barreira.
+     * Faz com que o cliente atual saia da barreira.
      *
-     * @throws KeeperException se o ZooKeeper encontrar um erro.
+     * @throws KeeperException      se o ZooKeeper encontrar um erro.
      * @throws InterruptedException se a thread for interrompida.
      */
-    public void removeBarriers() throws KeeperException, InterruptedException {
-        Stat stat1 = zk.exists(barrierNode1, false);
-        if (stat1 != null) {
-            zk.delete(barrierNode1, -1);
-        }
-
-        Stat stat2 = zk.exists(barrierNode2, false);
-        if (stat2 != null) {
-            zk.delete(barrierNode2, -1);
+    public void exitBarrier() throws KeeperException, InterruptedException {
+        for (; ; ) {
+            // 1. L = getChildren(b, false)
+            final List<Map.Entry<String, LocalDateTime>> children = zk.getChildren(barrierNode, false)
+                    // Para cada nó
+                    .stream().collect(Collectors.toMap(id -> id, id -> {
+                        // Leia seu conteúdo utilizando zk.getData()
+                        final byte[] creationDateData;
+                        try {
+                            creationDateData = zk.getData(barrierNode + "/" + id, false, null);
+                        } catch (KeeperException.NoNodeException e) {
+                            // Se nó não existe, adiciona valor padrão que removeremos posteriormente
+                            return LocalDateTime.MIN;
+                        } catch (KeeperException | InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        // Converta o conteúdo para um LocalDateTime, para encontrar a data de criação deste nó
+                        return LocalDateTime.parse(new String(creationDateData, StandardCharsets.UTF_8), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    }))
+                    // Transforme em um Map<String, LocalDateTime>, onde
+                    //  - as `keys` são os IDs do nó; e
+                    //  - os `values` são suas datas de criação
+                    .entrySet().stream()
+                    // Remove nós que não existem por valor padrão que adicionamos anteriormente
+                    .filter(entry -> entry.getValue() != LocalDateTime.MIN)
+                    // Ordene o Map<String, LocalDateTime> pelos `values` de forma crescente
+                    .sorted(Map.Entry.comparingByValue())
+                    // Transforme em uma List<Map.Entry<String, LocalDateTime>>, onde
+                    // - o nó mais antigo criado (lowest) está na primeira posição (entries.get(0))
+                    // - o nó mais recente criado (highest) está na última posição (entries.get(entries.size() - 1))
+                    .collect(Collectors.toList());
+            // 2. if no children, exit
+            if (children.isEmpty()) {
+                return;
+            }
+            // 3. if p is only process node in L, delete(n) and exit
+            if (children.size() == 1 && children.get(0).getKey().equals(id)) {
+                zk.delete(barrierNode + "/" + id, -1);
+                return;
+            }
+            exitLatch = new CountDownLatch(1);
+            if (children.get(0).getKey().equals(id)) {
+                // 4. if p is the lowest process node in L, wait on highest process node in L
+                zk.exists(barrierNode + "/" + children.get(children.size() - 1), true);
+            } else {
+                // 5. else delete(n) if still exists and wait on lowest process node in L
+                try {
+                    zk.delete(barrierNode + "/" + id, -1);
+                } catch (KeeperException.NoNodeException ignored) {
+                }
+                zk.exists(barrierNode + "/" + children.get(0), true);
+            }
+            exitLatch.countDown();
         }
     }
 
@@ -85,6 +152,7 @@ public class ZooKeeperDoubleBarrier {
      *
      * @throws InterruptedException se a thread for interrompida.
      */
+    @Override
     public void close() throws InterruptedException {
         zk.close();
     }
