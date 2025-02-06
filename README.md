@@ -220,6 +220,54 @@ Em outro exemplo, onde o cliente mais antigo finaliza por segundo:
 
 ![image](https://github.com/user-attachments/assets/e02dd13a-bb03-4ca2-9434-b7365e260270)
 
+```java
+public void exitBarrier() throws KeeperException, InterruptedException {
+    for (; ; ) {
+        // 1. L = getChildren(b, false)
+        final List<Map.Entry<String, LocalDateTime>> children = zk.getChildren(barrierNode, false)
+            .stream().collect(Collectors.toMap(id -> id, id -> {
+                final byte[] creationDateData;
+                try {
+                    creationDateData = zk.getData(barrierNode + "/" + id, false, null);
+                } catch (KeeperException.NoNodeException e) {
+                    // Se nó não existe, adiciona valor padrão que removeremos posteriormente
+                    return LocalDateTime.MIN;
+                } catch (KeeperException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return LocalDateTime.parse(new String(creationDateData, StandardCharsets.UTF_8), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            }))
+            .entrySet().stream()
+            .filter(entry -> entry.getValue() != LocalDateTime.MIN)
+            .sorted(Map.Entry.comparingByValue())
+            .collect(Collectors.toList());
+
+        // 2. if no children, exit
+        if (children.isEmpty()) {
+            return;
+        }
+        // 3. if p is only process node in L, delete(n) and exit
+        if (children.size() == 1 && children.get(0).getKey().equals(id)) {
+            zk.delete(barrierNode + "/" + id, -1);
+            return;
+        }
+        exitLatch = new CountDownLatch(1);
+        if (children.get(0).getKey().equals(id)) {
+            // 4. if p is the lowest process node in L, wait on highest process node in L
+            zk.exists(barrierNode + "/" + children.get(children.size() - 1), true);
+        } else {
+            // 5. else delete(n) if still exists and wait on lowest process node in L
+            try {
+                zk.delete(barrierNode + "/" + id, -1);
+            } catch (KeeperException.NoNodeException ignored) {
+            }
+            zk.exists(barrierNode + "/" + children.get(0), true);
+        }
+        exitLatch.countDown();
+    }
+}
+```
+
 <!-- TOC --><a name="testes"></a>
 ## Testes
 
