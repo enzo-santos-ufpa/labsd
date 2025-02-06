@@ -9,7 +9,7 @@ import java.util.concurrent.CountDownLatch;
 /**
  * Uma barreira distribuída simples usando o Apache ZooKeeper.
  */
-public class ZooKeeperBarrier {
+public class ZooKeeperBarrier implements AutoCloseable {
     private final ZooKeeper zk;
     private final String barrierNode;
     private final CountDownLatch latch = new CountDownLatch(1);
@@ -64,6 +64,7 @@ public class ZooKeeperBarrier {
      * 
      * @throws InterruptedException se a thread for interrompida.
      */
+    @Override
     public void close() throws InterruptedException {
         zk.close();
     }
