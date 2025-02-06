@@ -57,11 +57,13 @@ A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponí
 processamento, e `exitBarrier`, utilizado pelo cliente para sair da barreira e possivelmente aguardar outros clientes 
 terminarem o processamento.
 
-Supondo que cada cliente possui algo a ser feito (como ler uma planilha e extrair informações), existem quatro etapas de vida para cada um:
+Note que, apesar do nome, existe apenas um nó que realiza essa implementação no ZooKeeper. A parte "dupla" vem do fato que existem duas sincronizações entre todos os clientes que estão neste nó raiz: uma ao entrar na barreira e outra ao sair.
+
+Supondo que cada cliente possui uma tarefa a ser feita (como extrair informações de uma planilha), existem quatro etapas de vida para cada um:
 
 1. **execução**: o cliente aguarda os demais clientes entrarem na primeira barreira; ocorre quando o processo do cliente iniciou com sucesso e já está na primeira barreira
-2. **processamento**: o cliente faz o que precisa ser feito; ocorre quando todos os clientes já estão na primeira barreira
-3. **finalização**: o cliente aguarda os demais clientes entrarem na segunda barreira; ocorre quando o cliente termina o que precisava ser feito
+2. **processamento**: o cliente realiza sua tarefa; ocorre quando todos os clientes já estão na primeira barreira
+3. **finalização**: o cliente aguarda os demais clientes entrarem na segunda barreira; ocorre quando o cliente termina de realizar sua tarefa
 4. **encerramento**: o cliente é encerrado; ocorre quando todos os clientes já estão na segunda barreira
 
 As etapas de sincronização são **execução** e **finalização**: todos os clientes entram em **processamento** e em **encerramento** ao mesmo tempo.
@@ -72,7 +74,7 @@ Supondo que três clientes precisem realizar uma operação em conjunto com base
 
 - O cliente C1 entra em **execução**, cria um nó `/barreira/C1`, verifica quantos nós já existem na barreira (apenas 1) e aguarda o nó `/ready` ser criado
 - O cliente C2 entra em **execução**, cria um nó `/barreira/C2`, verifica quantos nós já existem na barreira (2) e aguarda o nó `/ready` ser criado
-- O cliente C3 entra em **execução**, cria um nó `/barreira/C3`, verifica quantos nós já existem na barreira (3), e, por verificar que já atingiu a quantidade de nós esperada, cria o nó `/ready`
+- O cliente C3 entra em **execução**, cria um nó `/barreira/C3`, verifica quantos nós já existem na barreira (3), e, por validar que já atingiu a quantidade de nós esperada, cria o nó `/ready`
 - O ZooKeeper notifica todos os clientes da criação do nó `/ready` e os clientes entram em **processamento** assim que recebem esta notificação
 
 ![image](https://github.com/user-attachments/assets/ffa34670-146d-413d-a747-8f98c5e21e8c)
@@ -106,6 +108,48 @@ public void enterBarrier() throws KeeperException, InterruptedException {
 ```
 
 #### Segunda barreira
+
+Supondo que os clientes terminem suas execuções em tempos diferentes,
+
+- O cliente C2 finaliza por primeiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1`, `/C2` e `/C3`), consulta o nó mais antigo (o que entrou primeiro, `/C1`), verifica se este nó corresponde
+  ao seu próprio nó, e, por validar que são nós diferentes, ele remove o seu próprio nó de `/barreira` e aguarda a
+  remoção do nó mais antigo
+- O cliente C3 finaliza por segundo sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu próprio nó de `/barreira`
+  e aguarda a remoção do nó mais antigo 
+- O cliente C1 finaliza por terceiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (somente `/C1`), e, por validar que está sozinho (conforme passo 3 do pseudocódigo), ele remove o seu próprio
+  nó sem validações adicionais e entra em **encerramento**
+- O ZooKeeper notifica C2 e C3 da remoção do nó `/C1` e estes entram em **encerramento** assim que recebem
+  esta notificação
+
+![image](https://github.com/user-attachments/assets/1376d5d3-41f0-439f-8695-527b92ee9d6e)
+
+
+Em outro exemplo, onde o cliente mais antigo finaliza por segundo:
+
+- O cliente C2 finaliza por primeiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1`, `/C2` e `/C3`), consulta o nó mais antigo (o que entrou primeiro, `/C1`), verifica se este nó corresponde
+  ao seu próprio nó, e, por validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu
+  próprio nó de `/barreira` e aguarda a remoção do nó mais antigo
+- O cliente C1 finaliza por segundo sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós iguais (conforme passo 4 do pseudocódigo), ele mantém seu nó e aguarda a remoção do nó mais
+  antigo (o que entrou por último, `/C3`)
+- O cliente C3 finaliza por terceiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu próprio nó de `/barreira`
+  e aguarda a remoção do nó mais antigo
+- O ZooKeeper notifica C1 da remoção do nó `/C3`, que consulta novamente a lista de nós de `/barreira` (`/C1`),
+  e, por validar que está sozinho (conforme passo 3 do pseudocódigo), ele remove o seu próprio nó sem validações
+  adicionais e entra em **encerramento**
+- O ZooKeeper notifica C2 e C3 da remoção do nó `/C1` e estes entram em **encerramento** assim que recebem esta
+  notificação
+
+![image](https://github.com/user-attachments/assets/e02dd13a-bb03-4ca2-9434-b7365e260270)
+
 
 ## Uso
 
