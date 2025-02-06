@@ -1,12 +1,15 @@
 package br.ufpa.icen.lib;
 
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.curator.test.TestingServer;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * Uma barreira distribuída simples usando o Apache ZooKeeper.
@@ -30,6 +33,71 @@ public class ZooKeeperBarrier implements AutoCloseable {
                 latch.countDown();
             }
         });
+    }
+
+    public static void main(String[] args) {
+        final Logger logger = LogManager.getLogger(ZooKeeperBarrier.class);
+
+        try (
+                // Inicializa servidor de teste, simulando o ZooKeeper
+                final TestingServer t = new TestingServer();
+                // Inicializa o controlador de barreira do ZooKeeper
+                final ZooKeeperBarrier controller = new ZooKeeperBarrier(t.getConnectString(), "/armazem")) {
+            // Cria a barreira
+            controller.zk.create("/armazem", null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+
+            System.out.println("Pedidos ainda não estão prontos. Entregadores aguardando...");
+
+            final int numCouriers = 3;
+            final List<Future<Void>> futures = new ArrayList<>(numCouriers);
+            for (int i = 0; i < numCouriers; i++) {
+                final int courierId = i;
+                // Para cada entregador, execute uma ação (Future)
+                futures.add(CompletableFuture.runAsync(() -> {
+                    // Cria uma instância do ZooKeeper conectada à barreira
+                    try (final ZooKeeperBarrier courier = new ZooKeeperBarrier(t.getConnectString(), "/armazem")) {
+                        System.out.println("Entregador " + courier + " esperando os pedidos serem processados...");
+                        try {
+                            // Aguarda pela barreira
+                            courier.waitForBarrier();
+                        } catch (KeeperException | InterruptedException e) {
+                            logger.error("erro em entregador " + courierId + " ao aguardar por barreira", e);
+                            return;
+                        }
+
+                    } catch (InterruptedException | IOException e) {
+                        logger.error("erro em entregador " + courierId + " ao criar barreira", e);
+                        return;
+                    }
+                    System.out.println("Entregador " + courierId + " saiu para entrega!");
+                }));
+            }
+
+            // Libera entregadores após 3 segundos
+            final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+            scheduler.schedule(() -> {
+                try {
+                    controller.removeBarrier();
+                } catch (KeeperException | InterruptedException e) {
+                    logger.error("erro ao remover barreira por controlador", e);
+                    return;
+                }
+                System.out.println("Pedidos prontos! Liberando entregadores para entrega...");
+            }, 3, TimeUnit.SECONDS);
+
+            // Inicia processamento de entregadores em paralelo
+            try {
+                //noinspection SuspiciousToArrayCall
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
+            } catch (InterruptedException e) {
+                logger.error("erro ao executar pedidos", e);
+                return;
+            }
+            System.out.println("Todos os entregadores iniciaram a entrega!");
+
+        } catch (Exception e) {
+            logger.error("erro ao inicializar programa", e);
+        }
     }
 
     /**
