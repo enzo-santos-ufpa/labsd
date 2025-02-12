@@ -12,14 +12,14 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
-public class ZooKeeperDoubleBarrierReusable implements AutoCloseable {
+public class ZooKeeperReusableDoubleBarrier implements AutoCloseable {
     private final ZooKeeper zk;
     private final String barrierNode;
     private final String id = UUID.randomUUID().toString();
     private CountDownLatch enterLatch;
     private CountDownLatch exitLatch;
 
-    public ZooKeeperDoubleBarrierReusable(String connectString, String barrierNode) throws IOException, InterruptedException, KeeperException {
+    public ZooKeeperReusableDoubleBarrier(String connectString, String barrierNode) throws IOException, InterruptedException, KeeperException {
         this.barrierNode = barrierNode;
         this.zk = createZooKeeperConnection(connectString);
         ensureBarrierNodeExists();
