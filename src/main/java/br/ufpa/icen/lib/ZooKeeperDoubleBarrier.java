@@ -134,16 +134,16 @@ public class ZooKeeperDoubleBarrier implements AutoCloseable {
             exitLatch = new CountDownLatch(1);
             if (children.get(0).getKey().equals(id)) {
                 // 4. if p is the lowest process node in L, wait on highest process node in L
-                zk.exists(barrierNode + "/" + children.get(children.size() - 1), true);
+                zk.exists(barrierNode + "/" + children.get(children.size() - 1).getKey(), true);
             } else {
                 // 5. else delete(n) if still exists and wait on lowest process node in L
                 try {
                     zk.delete(barrierNode + "/" + id, -1);
                 } catch (KeeperException.NoNodeException ignored) {
                 }
-                zk.exists(barrierNode + "/" + children.get(0), true);
+                zk.exists(barrierNode + "/" + children.get(0).getKey(), true);
             }
-            exitLatch.countDown();
+            exitLatch.await();
         }
     }
 
