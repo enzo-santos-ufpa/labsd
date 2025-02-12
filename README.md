@@ -328,6 +328,73 @@ public void exitBarrier() throws KeeperException, InterruptedException {
 }
 ```
 
+### Barreira dupla (reutilizável)
+
+Como o algoritmo descrito na seção anterior já implementa uma barreira reutilizável, visto que as únicas operações de
+remoção, sendo elas
+
+```java
+// 3. if p is only process node in L, delete(n) and exit
+if (children.size() == 1 && children.get(0).getKey().equals(id)) {
+    zk.delete(barrierNode + "/" + id, -1);
+    return;
+}
+```
+
+e
+
+```java
+// 5. else delete(n) if still exists and wait on lowest process node in L
+try {
+    zk.delete(barrierNode + "/" + id, -1);
+} catch (KeeperException.NoNodeException ignored) {
+}
+```
+
+ocorrem em `/barreira/{id}` (_filho_ do nó de barreira) ao invés de diretamente em `/barreira` (o próprio nó de 
+barreira), então o nó de barreira nunca é removido e sempre fica disponível para reutilização posterior.
+
+No entanto, foi preciso incluir uma verificação adicional ao _criar_ um nó de barreira, visto que ele estava 
+sendo criado incondicionalmente ao final do construtor:
+
+```java
+zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+```
+
+Caso um processo reutilizasse essa classe, iria ocorrer um erro ao criar esse nó de barreira informando que ele já 
+existe. Portanto, foi criado um novo método privado chamado `ensureBarrierNodeExists`, que verifica antes se o nó de barreira existe
+para depois criá-lo:
+
+```java
+private void ensureBarrierNodeExists() throws KeeperException, InterruptedException {
+    if (zk.exists(barrierNode, false) == null) {
+        zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+    }
+}
+```
+
+#### Correções
+
+Também foram adicionadas correções à implementação anterior, sendo elas
+
+- ao sair da barreira e aguardar outros nós também saírem, a escuta pelos nós restantes foi implementada como
+  ```java
+  zk.exists(barrierNode + "/" + children.get(...), true);
+  ```
+  No entanto, `children` é um vetor de `Map.Entry<String, LocalDateTime>`, onde o seu atributo `getKey()` é o nome do nó como
+  `String` e o seu `getValue()` é a sua data de criação como `LocalDateTime`. Então ao acessar um elemento seu 
+  (`children.get(...)`) e convertê-lo como texto (`"/" + children.get(...)`), a saída será o valor `Map.Entry` 
+  convertido como texto, e não o nome do nó em si. 
+
+  Para corrigir essa implementação, foi alterado o acesso pelo nome do nó para `getKey()` em ambas as ocorrências:
+  ```java
+  zk.exists(barrierNode + "/" + children.get(...).getKey(), true);
+  ```
+- para aguardar outros nós também saírem, foi utilizado o atributo `exitLatch`, do tipo `CountDownLatch`. A ideia seria 
+  realizar essa espera ao final do método `exitBarrier`, com o método `await()` do `exitLatch`. No entanto, foi 
+  utilizado erroneamente o método `countDown`, o que já foi corrigido.
+
+
 <!-- TOC --><a name="testes"></a>
 ## Testes
 
