@@ -144,6 +144,25 @@ this.zk = createZooKeeperConnection(connectString, event -> {
 
 O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que aje como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
 
+### Barreira simples (reutilizável)
+
+O algoritmo descrito na seção anterior não implementa barreiras reutilizáveis, visto que este apenas monitora a remoção 
+do nó de barreira e não considera a reinicialização do mesmo para múltiplas iterações de sincronização entre os 
+clientes. Para barreiras reutilizáveis, o nó de barreira seria recriado após cada sincronização, permitindo que
+os clientes possam esperar em várias execuções ou iterações do processo. 
+
+Neste caso, a implementação da classe `br.ufpa.icen.lib.ZooKeeperReusableBarrier` herdaria da classe 
+`br.ufpa.icen.lib.ZooKeeperBarrier` e apenas adicionaria uma funcionalidade ao método `waitForBarrier`, onde assim que 
+o processo fosse liberado, ele recriaria o nó de barreira:
+
+```java
+@Override
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    super.waitForBarrier();
+    zk.create(barrierNode, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+}
+```
+
 <!-- TOC --><a name="barreira-dupla"></a>
 ### Barreira dupla
 
