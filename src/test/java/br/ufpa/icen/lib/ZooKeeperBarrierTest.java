@@ -22,7 +22,8 @@ public class ZooKeeperBarrierTest {
         barrier = new ZooKeeperBarrier(testingServer.getConnectString(), BARRIER_NODE_PATH) {
             @Override
             protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
-                zk = super.createZooKeeperConnection(connectString, watcher);
+                final ZooKeeper zk = super.createZooKeeperConnection(connectString, watcher);
+                ZooKeeperBarrierTest.this.zk = zk;
                 return zk;
             }
         };
