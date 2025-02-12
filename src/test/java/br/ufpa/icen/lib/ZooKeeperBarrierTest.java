@@ -1,19 +1,23 @@
-
 package br.ufpa.icen.lib;
 
 import org.apache.curator.test.TestingServer;
 import org.apache.zookeeper.*;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ZooKeeperBarrierTest {
-    private ZooKeeper zk;
-
-    private static TestingServer testingServer;
-    private ZooKeeperBarrier barrier;
     private static final String BARRIER_NODE_PATH = "/barrier";
+    private static TestingServer testingServer;
+    private ZooKeeper zk;
+    private ZooKeeperBarrier barrier;
 
     @BeforeEach
     public void setUp() throws Exception {
