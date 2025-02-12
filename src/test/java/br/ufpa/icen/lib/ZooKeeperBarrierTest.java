@@ -32,7 +32,9 @@ public class ZooKeeperBarrierTest {
     @Test
     public void testWaitForBarrier_QuandoNoExiste_DeveAguardarPorRemocao() throws Exception {
         // Cenário onde outro cliente já está ocupando a barreira
+        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
         zk.create(BARRIER_NODE_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
 
         final Future<Void> future = CompletableFuture.runAsync(() -> {
             try {
@@ -49,12 +51,15 @@ public class ZooKeeperBarrierTest {
         zk.delete(BARRIER_NODE_PATH, -1);
 
         // Como o nó de barreira não existe mais, o cliente termina de esperar na barreira
+        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
         Assertions.assertDoesNotThrow(() -> future.get(5L, TimeUnit.SECONDS));
         Assertions.assertTrue(future.isDone());
     }
 
     @Test
-    public void testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir() {
+    public void testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir() throws InterruptedException, KeeperException {
+        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
+
         // Como o nó de barreira não existe, o cliente não precisa esperar
         final Future<Void> future = CompletableFuture.runAsync(() -> {
             try {
@@ -63,12 +68,14 @@ public class ZooKeeperBarrierTest {
                 throw new RuntimeException(e);
             }
         });
+        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
         Assertions.assertDoesNotThrow(() -> future.get(5L, TimeUnit.SECONDS));
         Assertions.assertTrue(future.isDone());
     }
 
     @Test
     public void testRemoveBarrier_QuandoNoExiste_DeveRemoverNo() throws Exception {
+        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
         // Cenário onde um cliente já está ocupando a barreira
         zk.create(BARRIER_NODE_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
