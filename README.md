@@ -2,26 +2,30 @@
 
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
 
-- [Laboratório de Sistemas Distribuídos](#laboratório-de-sistemas-distribuídos)
+- [Laboratório de Sistemas Distribuídos](#laboratório-de-sistemas-distribuídos-1)
    * [Configuração](#configuração)
    * [Implementação](#implementação)
       + [Barreira simples](#barreira-simples)
+      + [Barreira simples (reutilizável)](#barreira-simples-reutilizável)
       + [Barreira dupla](#barreira-dupla)
          - [Primeira barreira](#primeira-barreira)
          - [Segunda barreira](#segunda-barreira)
+      + [Barreira dupla (reutilizável)](#barreira-dupla-reutilizável)
+         - [Correções](#correções)
    * [Testes](#testes)
       + [Arquitetura](#arquitetura)
          - [Teste de código bloqueante](#teste-de-código-bloqueante)
          - [Teste da estrutura do ZooKeeper](#teste-da-estrutura-do-zookeeper)
       + [Barreira simples](#barreira-simples-1)
+      + [Barreira simples (reutilizável)](#barreira-simples-reutilizável-1)
       + [Barreira dupla](#barreira-dupla-1)
-   * [Uso](#uso)
+   * [Uso (Atividade 1)](#uso-atividade-1)
       + [Servidor](#servidor)
       + [Cliente](#cliente)
 
 <!-- TOC end -->
 
-<!-- TOC --><a name="laboratório-de-sistemas-distribuídos"></a>
+<!-- TOC --><a name="laboratório-de-sistemas-distribuídos-1"></a>
 # Laboratório de Sistemas Distribuídos
 
 > **Detalhamento da fase 1** 
@@ -144,6 +148,7 @@ this.zk = createZooKeeperConnection(connectString, event -> {
 
 O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que aje como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
 
+<!-- TOC --><a name="barreira-simples-reutilizável"></a>
 ### Barreira simples (reutilizável)
 
 O algoritmo descrito na seção anterior não implementa barreiras reutilizáveis, visto que este apenas monitora a remoção 
@@ -328,6 +333,7 @@ public void exitBarrier() throws KeeperException, InterruptedException {
 }
 ```
 
+<!-- TOC --><a name="barreira-dupla-reutilizável"></a>
 ### Barreira dupla (reutilizável)
 
 Como o algoritmo descrito na seção anterior já implementa uma barreira reutilizável, visto que as únicas operações de
@@ -373,6 +379,7 @@ private void ensureBarrierNodeExists() throws KeeperException, InterruptedExcept
 }
 ```
 
+<!-- TOC --><a name="correções"></a>
 #### Correções
 
 Também foram adicionadas correções à implementação anterior, sendo elas
@@ -542,6 +549,7 @@ Testa a entrada na barreira com um nó que não existe.
 - _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
 - _Verificação:_ nó `/barreira` deve continuar não existindo, cliente não deve estar bloqueado
 
+<!-- TOC --><a name="barreira-simples-reutilizável-1"></a>
 ### Barreira simples (reutilizável)
 
 Para a implementação da barreira simples reutilizável, os testes da barreira simples foram reutilizados (!) com somente
@@ -629,7 +637,7 @@ Testa a saída de um nó da barreira, com um outro nó de um cliente mais recent
 - _Ação:_ outro cliente remove o seu nó respectivo da barreira
 - _Verificação:_ cliente não deve estar bloqueado
 
-<!-- TOC --><a name="uso"></a>
+<!-- TOC --><a name="uso-atividade-1"></a>
 ## Uso (Atividade 1)
 
 A aplicação implementa um _lobby_ de jogadores simples, onde cada cliente acompanha o _status_ do _hub_: quando um
