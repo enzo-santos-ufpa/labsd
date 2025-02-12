@@ -465,16 +465,39 @@ Testa a entrada na barreira com um nó que já existe.
 - _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
 - _Verificação:_ o cliente deve estar bloqueado
 - _Ação:_ nó `/barreira` é removido
-- _Verificação:_ cliente não deve mais estar bloqueado
+- _Verificação:_ nó `/barreira` não deve mais existir, cliente não deve mais estar bloqueado
 
-
-1. `testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir`
+2. `testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir`
 
 Testa a entrada na barreira com um nó que não existe.
 
 - _Pré-condição:_ nó `/barreira` não criado
 - _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
-- _Verificação:_ o cliente deve não estar bloqueado
+- _Verificação:_ nó `/barreira` deve continuar não existindo, cliente não deve estar bloqueado
+
+### Barreira simples (reutilizável)
+
+Para a implementação da barreira simples reutilizável, os testes da barreira simples foram reutilizados (!) com somente
+uma alteração: após a chamada do método `waitForBarrier`, a verificação posterior deve considerar agora que o nó 
+`/barreira` foi recriado. Por isso, o passo de verificação de ambos foi alterado para
+
+- _Verificação:_ nó `/barreira` deve existir, cliente não deve estar bloqueado
+
+No código dos testes, isso se reflete  alterando de
+
+```java
+Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
+```
+
+na barreira simples para
+
+```java
+Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
+```
+
+na barreira simples reutilizável, após a chamada de `waitForBarrier`.
+
+
 
 <!-- TOC --><a name="barreira-dupla-1"></a>
 ### Barreira dupla
