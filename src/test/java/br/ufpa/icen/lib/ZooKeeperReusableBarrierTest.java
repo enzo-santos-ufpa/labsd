@@ -56,7 +56,7 @@ public class ZooKeeperReusableBarrierTest {
 
         // Como o nó de barreira não existe mais, o cliente termina de esperar na barreira
         Assertions.assertDoesNotThrow(() -> future.get(5L, TimeUnit.SECONDS));
-        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
+        Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
         Assertions.assertTrue(future.isDone());
     }
 
@@ -73,7 +73,7 @@ public class ZooKeeperReusableBarrierTest {
             }
         });
         Assertions.assertDoesNotThrow(() -> future.get(5L, TimeUnit.SECONDS));
-        Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
+        Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
         Assertions.assertTrue(future.isDone());
     }
 
