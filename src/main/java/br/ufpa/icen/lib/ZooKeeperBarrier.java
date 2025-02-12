@@ -113,11 +113,13 @@ public class ZooKeeperBarrier implements AutoCloseable {
      * @throws InterruptedException se a thread for interrompida.
      */
     public void waitForBarrier() throws KeeperException, InterruptedException {
-        Stat stat = zk.exists(barrierNode, true);
-        if (stat == null) {
-            return; // A barreira foi removida, pode prosseguir
+        while (true) {
+            Stat stat = zk.exists(barrierNode, true);
+            if (stat == null) {
+                return; // A barreira foi removida, pode prosseguir
+            }
+            latch.await(); // Aguarda até que o nó seja excluído
         }
-        latch.await(); // Aguarda até que o nó seja excluído
     }
 
     /**
