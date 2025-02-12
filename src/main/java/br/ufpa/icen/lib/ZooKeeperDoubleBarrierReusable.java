@@ -1,6 +1,7 @@
 package br.ufpa.icen.lib;
 
 import org.apache.zookeeper.*;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -75,13 +76,13 @@ public class ZooKeeperDoubleBarrierReusable implements AutoCloseable {
                     .filter(entry -> entry.getValue() != LocalDateTime.MIN)
                     .sorted(Map.Entry.comparingByValue())
                     .collect(Collectors.toList());
-            
+
             if (children.isEmpty()) return;
             if (children.size() == 1 && children.get(0).getKey().equals(id)) {
                 zk.delete(barrierNode + "/" + id, -1);
                 return;
             }
-            
+
             if (children.get(0).getKey().equals(id)) {
                 zk.exists(barrierNode + "/" + children.get(children.size() - 1).getKey(), true);
             } else {
