@@ -14,7 +14,7 @@ import java.util.concurrent.*;
 /**
  * Uma barreira distribuída reutilizável usando o Apache ZooKeeper.
  */
-public class ZooKeeperBarrierReusable implements AutoCloseable {
+public class ZooKeeperReusableBarrier implements AutoCloseable {
     private final ZooKeeper zk;
     private final String barrierNode;
     private final CyclicBarrier barrier;
@@ -27,7 +27,7 @@ public class ZooKeeperBarrierReusable implements AutoCloseable {
      * @param parties       Número de participantes esperados para liberar a barreira.
      * @throws IOException se a conexão falhar.
      */
-    public ZooKeeperBarrierReusable(String connectString, String barrierNode, int parties) throws IOException, InterruptedException, KeeperException {
+    public ZooKeeperReusableBarrier(String connectString, String barrierNode, int parties) throws IOException, InterruptedException, KeeperException {
         this.barrierNode = barrierNode;
         this.barrier = new CyclicBarrier(parties);
 
@@ -43,11 +43,11 @@ public class ZooKeeperBarrierReusable implements AutoCloseable {
     }
 
     public static void main(String[] args) {
-        final Logger logger = LogManager.getLogger(ZooKeeperBarrierReusable.class);
+        final Logger logger = LogManager.getLogger(ZooKeeperReusableBarrier.class);
 
         try (
                 final TestingServer t = new TestingServer();
-                final ZooKeeperBarrierReusable controller = new ZooKeeperBarrierReusable(t.getConnectString(), "/armazem", 3)) {
+                final ZooKeeperReusableBarrier controller = new ZooKeeperReusableBarrier(t.getConnectString(), "/armazem", 3)) {
 
             controller.zk.create("/armazem", null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 
@@ -58,7 +58,7 @@ public class ZooKeeperBarrierReusable implements AutoCloseable {
             for (int i = 0; i < numCouriers; i++) {
                 final int courierId = i;
                 futures.add(CompletableFuture.runAsync(() -> {
-                    try (final ZooKeeperBarrierReusable courier = new ZooKeeperBarrierReusable(t.getConnectString(), "/armazem", numCouriers)) {
+                    try (final ZooKeeperReusableBarrier courier = new ZooKeeperReusableBarrier(t.getConnectString(), "/armazem", numCouriers)) {
                         System.out.println("Entregador " + courierId + " esperando os pedidos serem processados...");
                         try {
                             courier.waitForBarrier();
