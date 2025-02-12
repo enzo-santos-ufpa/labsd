@@ -146,7 +146,7 @@ this.zk = createZooKeeperConnection(connectString, event -> {
 });
 ```
 
-O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que aje como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
+O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que age como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
 
 <!-- TOC --><a name="barreira-simples-reutilizável"></a>
 ### Barreira simples (reutilizável)
