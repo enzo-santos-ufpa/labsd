@@ -1,15 +1,22 @@
 package br.ufpa.icen.lib;
 
+import org.apache.curator.test.TestingServer;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.zookeeper.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -48,8 +55,104 @@ public class ZooKeeperDoubleBarrier implements AutoCloseable {
             }
         });
         // Cria o nó de barreira
-        zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        if (zk.exists(barrierNode, false) == null) {
+            zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
+
     }
+
+    public static void main(String[] args) {
+        final Logger logger = LogManager.getLogger(ZooKeeperDoubleBarrier.class);
+
+        final int numCouriers = 3;
+        try (
+                // Inicializa servidor de teste, simulando o ZooKeeper
+                final TestingServer t = new TestingServer();
+                // Inicializa o controlador de barreira do ZooKeeper
+                final ZooKeeperDoubleBarrier controller = new ZooKeeperDoubleBarrier(t.getConnectString(), "/armazem")) {
+            System.out.println("Pedidos ainda não estão prontos. Entregadores aguardando para a primeira barreira...");
+
+            final List<Future<Void>> enterBarrierFutures = new ArrayList<>(numCouriers);
+            for (int i = 0; i < numCouriers; i++) {
+                final int courierId = i;
+                // Para cada entregador, execute uma ação (Future)
+                enterBarrierFutures.add(CompletableFuture.runAsync(() -> {
+                    // Cria uma instância do ZooKeeper conectada à barreira
+                    try (final ZooKeeperDoubleBarrier courier = new ZooKeeperDoubleBarrier(t.getConnectString(), "/armazem")) {
+                        System.out.println("Entregador " + courier + " chegando na base...");
+                        Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3001));
+                        try {
+                            // Aguarda pela barreira de entrada
+                            courier.enterBarrier();
+                        } catch (KeeperException | InterruptedException e) {
+                            logger.error("erro em entregador " + courierId + " ao aguardar por barreira", e);
+                            return;
+                        }
+
+                    } catch (InterruptedException | IOException e) {
+                        logger.error("erro em entregador " + courierId + " ao criar barreira", e);
+                        return;
+                    } catch (KeeperException e) {
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("Entregador " + courierId + " chegou na base.");
+                }));
+            }
+
+            // Inicia processamento de entregadores em paralelo
+            try {
+                //noinspection SuspiciousToArrayCall
+                CompletableFuture.allOf(enterBarrierFutures.toArray(new CompletableFuture[0])).get();
+            } catch (InterruptedException e) {
+                logger.error("erro ao executar pedidos", e);
+                return;
+            }
+            System.out.println("Todos os entregadores chegaram na base.");
+
+// ========== SAÍDA
+            final List<Future<Void>> exitBarrierFutures = new ArrayList<>(numCouriers);
+            for (int i = 0; i < numCouriers; i++) {
+                final int courierId = i;
+                // Para cada entregador, execute uma ação (Future)
+                exitBarrierFutures.add(CompletableFuture.runAsync(() -> {
+                    // Cria uma instância do ZooKeeper conectada à barreira
+                    try (final ZooKeeperDoubleBarrier courier = new ZooKeeperDoubleBarrier(t.getConnectString(), "/armazem")) {
+                        System.out.println("Entregador " + courier + " saindo para entrega...");
+                        Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 3001));
+                        try {
+                            // Aguarda pela barreira de saída
+                            courier.exitBarrier();
+                        } catch (KeeperException | InterruptedException e) {
+                            logger.error("erro em entregador " + courierId + " ao aguardar por barreira", e);
+                            return;
+                        }
+
+                    } catch (InterruptedException | IOException e) {
+                        logger.error("erro em entregador " + courierId + " ao criar barreira", e);
+                        return;
+                    } catch (KeeperException e) {
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("Entregador " + courierId + " saiu para entrega.");
+                }));
+            }
+
+            // Inicia processamento de entregadores em paralelo
+            try {
+                //noinspection SuspiciousToArrayCall
+                CompletableFuture.allOf(exitBarrierFutures.toArray(new CompletableFuture[0])).get();
+            } catch (InterruptedException e) {
+                logger.error("erro ao executar pedidos", e);
+                return;
+            }
+            System.out.println("Todos os entregadores saíram para entrega.");
+
+
+        } catch (Exception e) {
+            logger.error("erro ao inicializar programa", e);
+        }
+    }
+
 
     protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
         return new ZooKeeper(connectString, 3000, watcher);
