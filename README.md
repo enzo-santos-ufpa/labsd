@@ -24,6 +24,47 @@
 <!-- TOC --><a name="laboratório-de-sistemas-distribuídos"></a>
 # Laboratório de Sistemas Distribuídos
 
+> **Detalhamento da fase 1** 
+> - Instalar o ZooKeeper. 
+>     - Cuidado com os zumbis: Muitas vezes processos zumbis de servidores do 
+>       ZooKeeper continuam rodando e consumindo recursos. Ainda não temos 
+>       nenhum mecanismo automático para acabar com os zumbis, por isso, 
+>       verifique se você não deixou nenhum processo deste tipo nas máquinas 
+>       antes de deslogar. 
+>     - Cuidado com o conflito de portas: cada grupo deverá escolher um conjunto 
+>       distinto de portas para operar, caso contrário, erros inesperados poderão 
+>       ocorrer. 
+> - Escreva uma aplicação que utilize o código das barreiras disponível em tutorial e, 
+>   que, com grande probabilidade evidenciem o bug descrito em [ZOOKEEPER
+>   1486](https://issues.apache.org/jira/browse/ZOOKEEPER-1486). Em sistemas distribuídos, é comum o uso de histórias para ilustrar 
+>   algoritmos: filósofos famintos, barbeiro dorminhoco, generais bizantinos... 
+>   Invente a sua!
+>   
+> **Detalhamento da fase 2** 
+> - Estudar o pseudo-código disponível em [https://zookeeper.apache.org/doc/r3.3.2/recipes.html](https://zookeeper.apache.org/doc/r3.3.2/recipes.html) 
+> - Implementar esse pseudo-código como uma biblioteca, seguindo o modelo já 
+>   disponível para outras receitas no diretório: _zookeeper-3.4.5/recipes_. 
+> - Implementar barreiras simples (`barrier_wait()`) e barreiras duplas (`barrier_enter()` 
+>   e `barrier_leave()`). 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+>  
+> **Detalhamento da fase 3** 
+> - Modificar o código da fase 2 para implementar barreiras reutilizáveis. 
+> - Corrigir eventuais erros apontados na fase anterior. 
+> - Escrever uma aplicação distribuída de testes para esta fase. 
+>
+> **Detalhamento da fase 4** 
+> - Modificar o código da fase 3 para implementar barreiras reutilizáveis e restritas. 
+> - Corrigir eventuais erros apontados nas fases anteriores. 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+>   
+> **Detalhamento da fase 5** 
+> - Modificar o código da fase 4 para implementar múltiplas barreiras reutilizáveis e 
+>   restritas. As barreiras duplas também podem ser aninhadas, ou seja, processos que 
+>   estão dentro de uma barreira dupla externa podem ter de passar por barreiras internas. 
+> - Corrigir eventuais erros apontados nas fases anteriores. 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+
 <!-- TOC --><a name="configuração"></a>
 ## Configuração
 
