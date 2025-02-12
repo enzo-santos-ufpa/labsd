@@ -15,8 +15,8 @@ import java.util.concurrent.*;
  * Uma barreira distribuída simples usando o Apache ZooKeeper.
  */
 public class ZooKeeperBarrier implements AutoCloseable {
-    private final ZooKeeper zk;
-    private final String barrierNode;
+    protected final ZooKeeper zk;
+    protected final String barrierNode;
     private final CountDownLatch latch = new CountDownLatch(1);
 
     /**
