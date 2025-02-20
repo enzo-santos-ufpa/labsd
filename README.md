@@ -169,6 +169,72 @@ public void waitForBarrier() throws KeeperException, InterruptedException {
 ```
 
 <!-- TOC --><a name="barreira-dupla"></a>
+### Barreira simples (restrita)
+
+O algoritmo descrito na seção anterior não implementa barreiras restritas, pois, embora permita múltiplas iterações, ele
+não impõe um limite de participantes, não controla nós excedentes e não gerencia a rejeição de novos clientes quando o 
+limite é atingido. Para barreiras restritas, além de serem recriadas após cada sincronização, elas devem garantir que 
+apenas um número máximo de participantes seja aceito em cada iteração, impedindo acessos excedentes e mantendo o 
+controle sobre a concorrência do sistema.
+
+Neste caso, a implementação da classe `br.ufpa.icen.lib.ZooKeeperReusableRestrictedBarrier` herdaria da classe 
+`br.ufpa.icen.lib.ZooKeeperBarrier` e adicionaria duas funcionalidades:
+
+1. para implementar a característica de "reutilizável", haveria o método `resetBarrier` para criar a barreira toda vez que um
+ciclo de iteração é concluído
+
+```java
+@Override
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    super.waitForBarrier();
+    zk.create(barrierNode, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+}
+```
+
+2. para implementar a característica de "restrita", haveria i) o atributo privado `maxParticipants`, que limita o número 
+_máximo_ de participantes; ii) o método `getParticipantCount`, para retornar o número _atual_ de participantes, fazendo 
+uma consulta ao ZooKeeper para buscar a quantidade de filhos do nó de barreira; e iii) o método
+`incrementParticipantCount`, chamado toda vez que ainda existe espaço no nó de barreira para mais clientes:
+
+```java
+private final int maxParticipants;
+
+private int getParticipantCount() throws KeeperException, InterruptedException {
+    byte[] data = zk.getData(barrierNode, false, null);
+    return Integer.parseInt(new String(data));
+}
+
+private void incrementParticipantCount() throws KeeperException, InterruptedException {
+    int count = getParticipantCount();
+    zk.setData(barrierNode, String.valueOf(count + 1).getBytes(), -1);
+}
+```
+
+Em conjunto, esses métodos são aplicados no `waitForBarrier` da seguinte forma:
+
+- quando um novo processo inicia, ele verifica se o nó de barreira existe
+- caso negativo, ele procede sua execução
+- caso positivo, ele aguarda até que o nó de barreira tenha _N_ clientes aguardando para prosseguir sua execução
+
+```java
+Stat stat = zk.exists(barrierNode, true);
+if (stat == null) {
+    return; // A barreira foi removida, pode prosseguir
+}
+
+int count = getParticipantCount();
+if (count < maxParticipants) {
+    incrementParticipantCount();
+    if (count + 1 == maxParticipants) {
+        removeBarrier();
+        resetBarrier();
+    }
+    return;
+}
+```
+
+<!-- TOC --><a name="barreira-dupla"></a>
+
 ### Barreira dupla
 
 A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponíveis:
