@@ -1,14 +1,82 @@
 # Laboratório de Sistemas Distribuídos
 
+<!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
+
+- [Laboratório de Sistemas Distribuídos](#laboratório-de-sistemas-distribuídos-1)
+   * [Configuração](#configuração)
+   * [Implementação](#implementação)
+      + [Barreira simples](#barreira-simples)
+      + [Barreira simples (reutilizável)](#barreira-simples-reutilizável)
+      + [Barreira dupla](#barreira-dupla)
+         - [Primeira barreira](#primeira-barreira)
+         - [Segunda barreira](#segunda-barreira)
+      + [Barreira dupla (reutilizável)](#barreira-dupla-reutilizável)
+         - [Correções](#correções)
+   * [Testes](#testes)
+      + [Arquitetura](#arquitetura)
+         - [Teste de código bloqueante](#teste-de-código-bloqueante)
+         - [Teste da estrutura do ZooKeeper](#teste-da-estrutura-do-zookeeper)
+      + [Barreira simples](#barreira-simples-1)
+      + [Barreira simples (reutilizável)](#barreira-simples-reutilizável-1)
+      + [Barreira dupla](#barreira-dupla-1)
+   * [Uso (Atividade 1)](#uso-atividade-1)
+      + [Servidor](#servidor)
+      + [Cliente](#cliente)
+
+<!-- TOC end -->
+
+<!-- TOC --><a name="laboratório-de-sistemas-distribuídos-1"></a>
+# Laboratório de Sistemas Distribuídos
+
+> **Detalhamento da fase 1** 
+> - Instalar o ZooKeeper. 
+>     - Cuidado com os zumbis: Muitas vezes processos zumbis de servidores do 
+>       ZooKeeper continuam rodando e consumindo recursos. Ainda não temos 
+>       nenhum mecanismo automático para acabar com os zumbis, por isso, 
+>       verifique se você não deixou nenhum processo deste tipo nas máquinas 
+>       antes de deslogar. 
+>     - Cuidado com o conflito de portas: cada grupo deverá escolher um conjunto 
+>       distinto de portas para operar, caso contrário, erros inesperados poderão 
+>       ocorrer. 
+> - Escreva uma aplicação que utilize o código das barreiras disponível em tutorial e, 
+>   que, com grande probabilidade evidenciem o bug descrito em [ZOOKEEPER
+>   1486](https://issues.apache.org/jira/browse/ZOOKEEPER-1486). Em sistemas distribuídos, é comum o uso de histórias para ilustrar 
+>   algoritmos: filósofos famintos, barbeiro dorminhoco, generais bizantinos... 
+>   Invente a sua!
+>   
+> **Detalhamento da fase 2** 
+> - Estudar o pseudo-código disponível em [https://zookeeper.apache.org/doc/r3.3.2/recipes.html](https://zookeeper.apache.org/doc/r3.3.2/recipes.html) 
+> - Implementar esse pseudo-código como uma biblioteca, seguindo o modelo já 
+>   disponível para outras receitas no diretório: _zookeeper-3.4.5/recipes_. 
+> - Implementar barreiras simples (`barrier_wait()`) e barreiras duplas (`barrier_enter()` 
+>   e `barrier_leave()`). 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+>  
+> **Detalhamento da fase 3** 
+> - Modificar o código da fase 2 para implementar barreiras reutilizáveis. 
+> - Corrigir eventuais erros apontados na fase anterior. 
+> - Escrever uma aplicação distribuída de testes para esta fase. 
+>
+> **Detalhamento da fase 4** 
+> - Modificar o código da fase 3 para implementar barreiras reutilizáveis e restritas. 
+> - Corrigir eventuais erros apontados nas fases anteriores. 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+>   
+> **Detalhamento da fase 5** 
+> - Modificar o código da fase 4 para implementar múltiplas barreiras reutilizáveis e 
+>   restritas. As barreiras duplas também podem ser aninhadas, ou seja, processos que 
+>   estão dentro de uma barreira dupla externa podem ter de passar por barreiras internas. 
+> - Corrigir eventuais erros apontados nas fases anteriores. 
+> - Escrever uma aplicação distribuída de testes para esta fase.
+
+<!-- TOC --><a name="configuração"></a>
 ## Configuração
 
 Os requisitos do projeto são:
 
-- ZooKeeper (versão 3.9.3), acessível por
-  meio [deste link](https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3-bin.tar.gz)
-- Maven (versão 3.9.9), acessível por
-  meio [deste link](https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz)
-- Java (versão 11), acessível por meio [deste link](https://www.java.com/pt-BR/download/manual.jsp)
+- ZooKeeper (versão 3.9.3), acessível via [Apache](https://dlcdn.apache.org/zookeeper/zookeeper-3.9.3/apache-zookeeper-3.9.3-bin.tar.gz)
+- Maven (versão 3.9.9), acessível via [Apache](https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz)
+- Java (versão 11), acessível via [Oracle](https://www.java.com/pt-BR/download/manual.jsp)
 
 Passos:
 
@@ -39,7 +107,604 @@ Passos:
     OS name: "windows 11", version: "10.0", arch: "amd64", family: "windows"
     ```
 
-## Uso
+<!-- TOC --><a name="implementação"></a>
+## Implementação
+
+<!-- TOC --><a name="barreira-simples"></a>
+### Barreira simples
+
+A classe `br.ufpa.icen.lib.ZooKeeperBarrier` possui um método disponível: `waitForBarrier`, utilizado pelo cliente
+para entrar na barreira e possivelmente aguardar até ela ser removida.
+
+Existem apenas duas situações para esse tipo de barreira:
+
+1. O cliente tenta acessar a barreira e ela **não existe**: ele prossegue com sucesso.
+2. O cliente tenta acessar a barreira e ela **existe**: ele aguarda até que a barreira seja removida.
+
+A barreira aqui é implementada simplesmente com um nó no ZooKeeper. Caso o cliente realize a leitura desse
+nó e ele existe, ele aguarda até que o ZooKeeper envia um evento de remoção para esse nó, prosseguindo com sua execução.
+
+```java
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    while (true) {
+        Stat stat = zk.exists(barrierNode, true);
+        if (stat == null) {
+            return; // A barreira foi removida, pode prosseguir
+        }
+        latch.await(); // Aguarda até que o nó seja excluído
+    }
+}
+```
+
+onde o `latch` é definido com um contador 1 e atualizado no construtor da classe:
+
+```java
+this.zk = createZooKeeperConnection(connectString, event -> {
+    if (event.getType() == Watcher.Event.EventType.NodeDeleted && event.getPath().equals(this.barrierNode)) {
+        latch.countDown();
+    }
+});
+```
+
+O `latch` aqui é um objeto do tipo [`java.util.concurrent.CountDownLatch`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CountDownLatch.html), que age como um semáforo. Ao chamar seu método `countDown`, seu contador interno é decrementado para 0 e toda chamada que depende do seu método `await` é liberada, deixando a execução do programa prosseguir.
+
+<!-- TOC --><a name="barreira-simples-reutilizável"></a>
+### Barreira simples (reutilizável)
+
+O algoritmo descrito na seção anterior não implementa barreiras reutilizáveis, visto que este apenas monitora a remoção 
+do nó de barreira e não considera a reinicialização do mesmo para múltiplas iterações de sincronização entre os 
+clientes. Para barreiras reutilizáveis, o nó de barreira seria recriado após cada sincronização, permitindo que
+os clientes possam esperar em várias execuções ou iterações do processo. 
+
+Neste caso, a implementação da classe `br.ufpa.icen.lib.ZooKeeperReusableBarrier` herdaria da classe 
+`br.ufpa.icen.lib.ZooKeeperBarrier` e apenas adicionaria uma funcionalidade ao método `waitForBarrier`, onde assim que 
+o processo fosse liberado, ele recriaria o nó de barreira:
+
+```java
+@Override
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    super.waitForBarrier();
+    zk.create(barrierNode, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+}
+```
+
+<!-- TOC --><a name="barreira-dupla"></a>
+### Barreira simples (restrita)
+
+O algoritmo descrito na seção anterior não implementa barreiras restritas, pois, embora permita múltiplas iterações, ele
+não impõe um limite de participantes, não controla nós excedentes e não gerencia a rejeição de novos clientes quando o 
+limite é atingido. Para barreiras restritas, além de serem recriadas após cada sincronização, elas devem garantir que 
+apenas um número máximo de participantes seja aceito em cada iteração, impedindo acessos excedentes e mantendo o 
+controle sobre a concorrência do sistema.
+
+Neste caso, a implementação da classe `br.ufpa.icen.lib.ZooKeeperReusableRestrictedBarrier` herdaria da classe 
+`br.ufpa.icen.lib.ZooKeeperBarrier` e adicionaria duas funcionalidades:
+
+1. para implementar a característica de "reutilizável", haveria o método `resetBarrier` para criar a barreira toda vez que um
+ciclo de iteração é concluído
+
+```java
+@Override
+public void waitForBarrier() throws KeeperException, InterruptedException {
+    super.waitForBarrier();
+    zk.create(barrierNode, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+}
+```
+
+2. para implementar a característica de "restrita", haveria i) o atributo privado `maxParticipants`, que limita o número 
+_máximo_ de participantes; ii) o método `getParticipantCount`, para retornar o número _atual_ de participantes, fazendo 
+uma consulta ao ZooKeeper para buscar a quantidade de filhos do nó de barreira; e iii) o método
+`incrementParticipantCount`, chamado toda vez que ainda existe espaço no nó de barreira para mais clientes:
+
+```java
+private final int maxParticipants;
+
+private int getParticipantCount() throws KeeperException, InterruptedException {
+    byte[] data = zk.getData(barrierNode, false, null);
+    return Integer.parseInt(new String(data));
+}
+
+private void incrementParticipantCount() throws KeeperException, InterruptedException {
+    int count = getParticipantCount();
+    zk.setData(barrierNode, String.valueOf(count + 1).getBytes(), -1);
+}
+```
+
+Em conjunto, esses métodos são aplicados no `waitForBarrier` da seguinte forma:
+
+- quando um novo processo inicia, ele verifica se o nó de barreira existe
+- caso negativo, ele procede sua execução
+- caso positivo, ele aguarda até que o nó de barreira tenha _N_ clientes aguardando para prosseguir sua execução
+
+```java
+Stat stat = zk.exists(barrierNode, true);
+if (stat == null) {
+    return; // A barreira foi removida, pode prosseguir
+}
+
+int count = getParticipantCount();
+if (count < maxParticipants) {
+    incrementParticipantCount();
+    if (count + 1 == maxParticipants) {
+        removeBarrier();
+        resetBarrier();
+    }
+    return;
+}
+```
+
+<!-- TOC --><a name="barreira-dupla"></a>
+
+### Barreira dupla
+
+A classe `br.ufpa.icen.lib.ZooKeeperDoubleBarrier` possui dois métodos disponíveis:
+`enterBarrier`, utilizado pelo cliente para entrar na barreira e possivelmente aguardar outros clientes iniciarem o
+processamento, e `exitBarrier`, utilizado pelo cliente para sair da barreira e possivelmente aguardar outros clientes 
+terminarem o processamento.
+
+Note que, apesar do nome, existe apenas um nó que realiza essa implementação no ZooKeeper. A parte "dupla" vem do fato que existem duas sincronizações entre todos os clientes que estão neste nó raiz: uma ao entrar na barreira e outra ao sair. Isso é perceptível ao notar que na implementação existem dois _latches_:
+
+```java
+this.zk = createZooKeeperConnection(connectString, event -> {
+    if (event.getType() == Watcher.Event.EventType.NodeCreated) {
+        if (event.getPath().equals(barrierNode + "/ready")) {
+            enterLatch.countDown();
+        }
+    } else if (event.getType() == Watcher.Event.EventType.NodeDeleted) {
+        if (exitLatch != null) {
+            exitLatch.countDown();
+        }
+    }
+});
+```
+
+Supondo que cada cliente possui uma tarefa a ser feita (como extrair informações de uma planilha), existem quatro etapas de vida para cada um:
+
+1. **execução**: o cliente aguarda os demais clientes entrarem na primeira barreira; ocorre quando o processo do cliente iniciou com sucesso e já está na primeira barreira
+2. **processamento**: o cliente realiza sua tarefa; ocorre quando todos os clientes já estão na primeira barreira
+3. **finalização**: o cliente aguarda os demais clientes entrarem na segunda barreira; ocorre quando o cliente termina de realizar sua tarefa
+4. **encerramento**: o cliente é encerrado; ocorre quando todos os clientes já estão na segunda barreira
+
+As etapas de sincronização são **execução** e **finalização**: todos os clientes entram em **processamento** e em **encerramento** ao mesmo tempo.
+
+Supondo que três clientes precisem realizar uma operação em conjunto com base em um nó `/barreira` que implementa barreiras duplas, o seguinte ocorre:
+
+<!-- TOC --><a name="primeira-barreira"></a>
+#### Primeira barreira
+
+- O cliente C1 entra em **execução**, cria um nó `/barreira/C1`, verifica quantos nós já existem na barreira (apenas 1) e aguarda o nó `/ready` ser criado
+- O cliente C2 entra em **execução**, cria um nó `/barreira/C2`, verifica quantos nós já existem na barreira (2) e aguarda o nó `/ready` ser criado
+- O cliente C3 entra em **execução**, cria um nó `/barreira/C3`, verifica quantos nós já existem na barreira (3), e, por validar que já atingiu a quantidade de nós esperada, cria o nó `/ready`
+- O ZooKeeper notifica todos os clientes da criação do nó `/ready` e os clientes entram em **processamento** assim que recebem esta notificação
+
+![image](https://github.com/user-attachments/assets/ffa34670-146d-413d-a747-8f98c5e21e8c)
+
+```java
+public void enterBarrier() throws KeeperException, InterruptedException {
+    // 1. Create a name n = b+"/"+p
+    final String n = barrierNode + "/" + id;
+
+    // 2. Set watch: exists(b + "/ready", true)
+    zk.exists(barrierNode + "/ready", true);
+
+    // 3. Create child: create( n, EPHEMERAL)
+    zk.create(n,
+        // Guarda a data de criação deste nó para consulta em `exitBarrier`
+        LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME).getBytes(StandardCharsets.UTF_8),
+        ZooDefs.Ids.OPEN_ACL_UNSAFE,
+        CreateMode.EPHEMERAL
+    );
+
+    // 4. L = getChildren(b, false)
+    final List<String> children = zk.getChildren(barrierNode, false);
+    if (children.size() < 3) {
+        // 5. if fewer children in L than x, wait for watch event
+        enterLatch.await();
+    } else {
+        // 6. else create(b + "/ready", REGULAR)
+        zk.create(barrierNode + "/ready", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+    }
+}
+```
+
+<!-- TOC --><a name="segunda-barreira"></a>
+#### Segunda barreira
+
+Supondo que os clientes terminem suas execuções em tempos diferentes,
+
+- O cliente C2 finaliza por primeiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1`, `/C2` e `/C3`), consulta o nó mais antigo (o que entrou primeiro, `/C1`), verifica se este nó corresponde
+  ao seu próprio nó, e, por validar que são nós diferentes, ele remove o seu próprio nó de `/barreira` e aguarda a
+  remoção do nó mais antigo
+- O cliente C3 finaliza por segundo sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu próprio nó de `/barreira`
+  e aguarda a remoção do nó mais antigo 
+- O cliente C1 finaliza por terceiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (somente `/C1`), e, por validar que está sozinho (conforme passo 3 do pseudocódigo), ele remove o seu próprio
+  nó sem validações adicionais e entra em **encerramento**
+- O ZooKeeper notifica C2 e C3 da remoção do nó `/C1` e estes entram em **encerramento** assim que recebem
+  esta notificação
+
+![image](https://github.com/user-attachments/assets/1376d5d3-41f0-439f-8695-527b92ee9d6e)
+
+
+Em outro exemplo, onde o cliente mais antigo finaliza por segundo:
+
+- O cliente C2 finaliza por primeiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1`, `/C2` e `/C3`), consulta o nó mais antigo (o que entrou primeiro, `/C1`), verifica se este nó corresponde
+  ao seu próprio nó, e, por validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu
+  próprio nó de `/barreira` e aguarda a remoção do nó mais antigo
+- O cliente C1 finaliza por segundo sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós iguais (conforme passo 4 do pseudocódigo), ele mantém seu nó e aguarda a remoção do nó mais
+  antigo (o que entrou por último, `/C3`)
+- O cliente C3 finaliza por terceiro sua tarefa, entra em **finalização**, consulta a lista de nós de `/barreira`
+  (`/C1` e `/C3`), consulta o nó mais antigo (`/C1`), verifica se este nó corresponde ao seu próprio nó, e, por
+  validar que são nós diferentes (conforme passo 5 do pseudocódigo), ele remove o seu próprio nó de `/barreira`
+  e aguarda a remoção do nó mais antigo
+- O ZooKeeper notifica C1 da remoção do nó `/C3`, que consulta novamente a lista de nós de `/barreira` (`/C1`),
+  e, por validar que está sozinho (conforme passo 3 do pseudocódigo), ele remove o seu próprio nó sem validações
+  adicionais e entra em **encerramento**
+- O ZooKeeper notifica C2 e C3 da remoção do nó `/C1` e estes entram em **encerramento** assim que recebem esta
+  notificação
+
+![image](https://github.com/user-attachments/assets/e02dd13a-bb03-4ca2-9434-b7365e260270)
+
+```java
+public void exitBarrier() throws KeeperException, InterruptedException {
+    for (; ; ) {
+        // 1. L = getChildren(b, false)
+        final List<Map.Entry<String, LocalDateTime>> children = zk.getChildren(barrierNode, false)
+            .stream().collect(Collectors.toMap(id -> id, id -> {
+                final byte[] creationDateData;
+                try {
+                    creationDateData = zk.getData(barrierNode + "/" + id, false, null);
+                } catch (KeeperException.NoNodeException e) {
+                    // Se nó não existe, adiciona valor padrão que removeremos posteriormente
+                    return LocalDateTime.MIN;
+                } catch (KeeperException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                return LocalDateTime.parse(new String(creationDateData, StandardCharsets.UTF_8), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            }))
+            .entrySet().stream()
+            .filter(entry -> entry.getValue() != LocalDateTime.MIN)
+            .sorted(Map.Entry.comparingByValue())
+            .collect(Collectors.toList());
+
+        // 2. if no children, exit
+        if (children.isEmpty()) {
+            return;
+        }
+        // 3. if p is only process node in L, delete(n) and exit
+        if (children.size() == 1 && children.get(0).getKey().equals(id)) {
+            zk.delete(barrierNode + "/" + id, -1);
+            return;
+        }
+        exitLatch = new CountDownLatch(1);
+        if (children.get(0).getKey().equals(id)) {
+            // 4. if p is the lowest process node in L, wait on highest process node in L
+            zk.exists(barrierNode + "/" + children.get(children.size() - 1), true);
+        } else {
+            // 5. else delete(n) if still exists and wait on lowest process node in L
+            try {
+                zk.delete(barrierNode + "/" + id, -1);
+            } catch (KeeperException.NoNodeException ignored) {
+            }
+            zk.exists(barrierNode + "/" + children.get(0), true);
+        }
+        exitLatch.countDown();
+    }
+}
+```
+
+<!-- TOC --><a name="barreira-dupla-reutilizável"></a>
+### Barreira dupla (reutilizável)
+
+Como o algoritmo descrito na seção anterior já implementa uma barreira reutilizável, visto que as únicas operações de
+remoção, sendo elas
+
+```java
+// 3. if p is only process node in L, delete(n) and exit
+if (children.size() == 1 && children.get(0).getKey().equals(id)) {
+    zk.delete(barrierNode + "/" + id, -1);
+    return;
+}
+```
+
+e
+
+```java
+// 5. else delete(n) if still exists and wait on lowest process node in L
+try {
+    zk.delete(barrierNode + "/" + id, -1);
+} catch (KeeperException.NoNodeException ignored) {
+}
+```
+
+ocorrem em `/barreira/{id}` (_filho_ do nó de barreira) ao invés de diretamente em `/barreira` (o próprio nó de 
+barreira), então o nó de barreira nunca é removido e sempre fica disponível para reutilização posterior.
+
+No entanto, foi preciso incluir uma verificação adicional ao _criar_ um nó de barreira, visto que ele estava 
+sendo criado incondicionalmente ao final do construtor:
+
+```java
+zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+```
+
+Caso um processo reutilizasse essa classe, iria ocorrer um erro ao criar esse nó de barreira informando que ele já 
+existe. Portanto, foi criado um novo método privado chamado `ensureBarrierNodeExists`, que verifica antes se o nó de barreira existe
+para depois criá-lo:
+
+```java
+private void ensureBarrierNodeExists() throws KeeperException, InterruptedException {
+    if (zk.exists(barrierNode, false) == null) {
+        zk.create(barrierNode, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+    }
+}
+```
+
+<!-- TOC --><a name="correções"></a>
+#### Correções
+
+Também foram adicionadas correções à implementação anterior, sendo elas
+
+- ao sair da barreira e aguardar outros nós também saírem, a escuta pelos nós restantes foi implementada como
+  ```java
+  zk.exists(barrierNode + "/" + children.get(...), true);
+  ```
+  No entanto, `children` é um vetor de `Map.Entry<String, LocalDateTime>`, onde o seu atributo `getKey()` é o nome do nó como
+  `String` e o seu `getValue()` é a sua data de criação como `LocalDateTime`. Então ao acessar um elemento seu 
+  (`children.get(...)`) e convertê-lo como texto (`"/" + children.get(...)`), a saída será o valor `Map.Entry` 
+  convertido como texto, e não o nome do nó em si. 
+
+  Para corrigir essa implementação, foi alterado o acesso pelo nome do nó para `getKey()` em ambas as ocorrências:
+  ```java
+  zk.exists(barrierNode + "/" + children.get(...).getKey(), true);
+  ```
+- para aguardar outros nós também saírem, foi utilizado o atributo `exitLatch`, do tipo `CountDownLatch`. A ideia seria 
+  realizar essa espera ao final do método `exitBarrier`, com o método `await()` do `exitLatch`. No entanto, foi 
+  utilizado erroneamente o método `countDown`, o que já foi corrigido.
+
+
+<!-- TOC --><a name="testes"></a>
+## Testes
+
+Para construir os testes automatizados, foram utilizadas as bibliotecas
+
+- JUnit (versão 5.9.2), acessível via [Maven](https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-engine)
+- Curator Testing (versão 5.4.0), acessível
+  via [Maven](https://mvnrepository.com/artifact/org.apache.curator/curator-test)
+
+O Curator Testing foi utilizado para simular um servidor ZooKeeper em memória, onde ao invés de definir
+
+```java
+final ZooKeeper zk = new ZooKeeper("localhost:3181", 3000, null);
+```
+
+se cria uma instância de `TestingServer` e se acessa seu método `getConnectionString`:
+
+```java
+final TestingServer server = new TestingServer();
+final ZooKeeper zk = new ZooKeeper(server.getConnectionString(), 3000, null);
+```
+
+sem precisar ter o _overhead_ de executar o `zkServer` toda vez que um teste for iniciado.
+
+Os testes estão disponíveis no diretório _src/test_.
+
+<!-- TOC --><a name="arquitetura"></a>
+### Arquitetura
+
+<!-- TOC --><a name="teste-de-código-bloqueante"></a>
+#### Teste de código bloqueante
+
+No código principal, existem algumas execuções que são bloqueantes (isto é, que bloqueiam a _thread_
+principal do cliente até que a execução seja finalizada). Um exemplo delas é o método `enterBarrier`
+da classe `ZooKeeperDoubleBarrier`, que pode bloquear o código do cliente enquanto os outros clientes
+não entrarem na barreira desejada. Como para testes esse bloqueio é indesejado, essas execuções precisam
+ser realizadas de forma assíncrona, e neste caso, foi escolhida a implementação assíncrona por meio de
+objetos do tipo [`java.util.concurrent.Future<?>`](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html):
+
+```java
+final Future<Void> future = CompletableFuture.runAsync(() -> {
+    try {
+        barrier.enterBarrier();
+    } catch (KeeperException | InterruptedException e) {
+        throw new RuntimeException(e);
+    }
+});
+```
+
+Para testar se um `Future` está bloqueado, se utiliza a asserção
+
+```java
+Assertions.assertThrows(TimeoutException.class, () -> future.get(1L, TimeUnit.SECONDS));
+```
+
+Em outras palavras, se tenta obter o resultado do _future_ em um determinado período de tempo (neste caso, 1 segundo)
+por meio do seu método `get`. Caso o método lance a exceção `TimeoutException` neste intervalo, significa que a _thread_
+deste _future_ está bloqueada. Apesar dessa estratégia de esperar 1 segundo não ser a ideal para testes em geral (visto
+que a execução do _future_ pode durar mais que 1 segundo e o teste acabar sendo um falso positivo), para esse tipo de 
+testes é o suficiente.
+
+Para testar se o cliente está com a sua execução normal, se verifica se o `Future` não lança nenhuma 
+exceção após o mesmo limite de tempo:
+
+```java
+Assertions.assertDoesNotThrow(() -> future.get(1L, TimeUnit.SECONDS));
+```
+
+<!-- TOC --><a name="teste-da-estrutura-do-zookeeper"></a>
+#### Teste da estrutura do ZooKeeper
+
+Tanto o `ZooKeeperBarrier` quanto `ZooKeeperDoubleBarrier` possuem um atributo privado `zk`, que armazena uma 
+instância do ZooKeeper. Para evitar criar uma nova instância do ZooKeeper para os testes e reutilizar esse 
+atributo, foi criado um método protegido chamado `createZooKeeperConnection`:
+
+```java
+protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
+    return new ZooKeeper(connectString, 3000, watcher);
+}
+```
+
+Desta forma, se refatorou o código do cliente para criar a instância do ZooKeeper com base neste método:
+
+```java
+this.zk = createZooKeeperConnection(connectString, event -> { /* ... */ });
+```
+
+E para acessar esta instância nos testes, se sobrescreve este método para capturar a criação desta instância e
+armazená-la na classe de execução dos testes:
+
+```java
+public class ZooKeeperBarrierTest {
+    private ZooKeeper zk;
+
+    @BeforeEach
+    public void setUp() throws Exception {
+        testingServer = new TestingServer();
+        barrier = new ZooKeeperBarrier(testingServer.getConnectString(), BARRIER_NODE_PATH) {
+            @Override
+            protected ZooKeeper createZooKeeperConnection(String connectString, Watcher watcher) throws IOException {
+                zk = super.createZooKeeperConnection(connectString, watcher);
+                return zk;
+            }
+        };
+    }
+}
+```
+
+Para simular as ações de outro cliente, como criação ou remoção de nós, se utiliza os métodos direto na variável `zk` capturada:
+
+```java
+zk.create(BARRIER_NODE_PATH, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+zk.delete(BARRIER_NODE_PATH, -1);
+``` 
+
+Para testar se os nós foram criados no ZooKeeper após a chamada de algum método da barreira, se utiliza as asserções no estilo
+
+```java
+Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH + "/ready", false));
+Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH + "/" + barrier.getId(), false));
+```
+
+<!-- TOC --><a name="barreira-simples-1"></a>
+### Barreira simples
+
+Para a classe `ZooKeeperBarrier`, foi testado seu método principal, `waitForBarrier`.
+
+Os testes são:
+
+1. `testWaitForBarrier_QuandoNoExiste_DeveAguardarPorRemocao`
+
+Testa a entrada na barreira com um nó que já existe.
+
+- _Pré-condição:_ nó `/barreira` criado
+- _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ o cliente deve estar bloqueado
+- _Ação:_ nó `/barreira` é removido
+- _Verificação:_ nó `/barreira` não deve mais existir, cliente não deve mais estar bloqueado
+
+2. `testWaitForBarrier_QuandoNoNaoExiste_DeveProsseguir`
+
+Testa a entrada na barreira com um nó que não existe.
+
+- _Pré-condição:_ nó `/barreira` não criado
+- _Ação:_ **chamada do método `waitForBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ nó `/barreira` deve continuar não existindo, cliente não deve estar bloqueado
+
+<!-- TOC --><a name="barreira-simples-reutilizável-1"></a>
+### Barreira simples (reutilizável)
+
+Para a implementação da barreira simples reutilizável, os testes da barreira simples foram reutilizados (!) com somente
+uma alteração: após a chamada do método `waitForBarrier`, a verificação posterior deve considerar agora que o nó 
+`/barreira` foi recriado. Por isso, o passo de verificação de ambos foi alterado para
+
+- _Verificação:_ nó `/barreira` deve existir, cliente não deve estar bloqueado
+
+No código dos testes, isso se reflete  alterando de
+
+```java
+Assertions.assertNull(zk.exists(BARRIER_NODE_PATH, false));
+```
+
+na barreira simples para
+
+```java
+Assertions.assertNotNull(zk.exists(BARRIER_NODE_PATH, false));
+```
+
+na barreira simples reutilizável, após a chamada de `waitForBarrier`.
+
+
+
+<!-- TOC --><a name="barreira-dupla-1"></a>
+### Barreira dupla
+
+Para a classe `ZooKeeperDoubleBarrier`, foram testados seus dois métodos principais: `enterBarrier` e `exitBarrier`.
+
+Os testes são:
+
+1. `testEnterBarrier_QuandoPrimeiroNoNaBarreira_DeveCriarNoProprioEAguardarPorNoReady`
+
+Testa a entrada de um nó na barreira que aguarda pelos demais até atingir o limite de 3 nós.
+
+- _Pré-condição:_ nó `/ready` não criado; nó do cliente não criado
+- _Ação:_ **chamada do método `enterBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ o cliente deve estar bloqueado; o nó do cliente deve ter sido foi criado
+- _Ação:_ outro cliente cria um nó na barreira
+- _Verificação:_ cliente ainda deve estar bloqueado
+- _Ação:_ cria o nó `/ready`
+- _Verificação:_ cliente não está mais bloqueado
+
+2. `testEnterBarrier_QuandoUltimoNoNaBarreira_DeveCriarNoProprioENoReady`
+
+Testa a entrada de um nó na barreira já com 2 nós esperando, atingindo o limite de 3 nós com sua entrada.
+
+- _Pré-condição:_ nó `/ready` não criado; nó do cliente não criado; nó de dois outros clientes já criados
+- _Ação:_ **chamada do método `enterBarrier`**, simulando o cliente entrar na barreira
+- _Verificação:_ cliente não deve estar bloqueado; nó do cliente deve ter sido criado; nó `/ready` deve ter sido criado
+
+3. `testExitBarrier_QuandoBarreiraEstiverVazia_DeveProsseguir`
+
+Testa a saída de um nó da barreira sem nós restantes.
+
+- _Pré-condição:_ sem nós criados
+- _Ação:_ **chamada do método `exitBarrier`**, simulando o cliente sair na barreira
+- _Verificação:_ cliente não deve estar bloqueado; nenhum nó deve ter sido criado
+
+4. `testExitBarrier_QuandoUnicoNoNaBarreira_DeveRemoverNoEProsseguir`
+
+Testa a saída de um nó da barreira com seu único nó restante.
+
+- _Pré-condição:_ nó do cliente já criado
+- _Ação:_ **chamada do método `exitBarrier`**, simulando o cliente sair na barreira
+- _Verificação:_ cliente não deve estar bloqueado; nó do cliente deve ter sido removido
+
+5. `testExitBarrier_QuandoNoMaisAntigoNaBarreira_DeveAguardarNoMaisRecenteEProsseguir`
+
+Testa a saída de um nó da barreira, com um outro nó de um cliente mais antigo.
+
+- _Pré-condição:_ nó do cliente já criado; nó de outro cliente já criado, mais recente
+- _Ação:_ **chamada do método `exitBarrier`**, simulando o cliente sair na barreira
+- _Verificação:_ cliente deve estar bloqueado; nó do cliente não deve ter sido removido; nó do outro cliente não deve ter sido removido
+- _Ação:_ outro cliente remove o seu nó respectivo da barreira
+- _Verificação:_ cliente não deve estar bloqueado; nó do cliente deve ter sido removido
+
+6. `testExitBarrier_QuandoNoMaisRecenteNaBarreira_DeveAguardarNoMaisAntigoEProsseguir`
+
+Testa a saída de um nó da barreira, com um outro nó de um cliente mais recente.
+
+- _Pré-condição:_ nó do cliente já criado; nó de outro cliente já criado, mais recente
+- _Ação:_ **chamada do método `exitBarrier`**, simulando o cliente sair na barreira
+- _Verificação:_ cliente deve estar bloqueado; nó do cliente deve ter sido removido; nó do outro cliente não deve ter sido removido
+- _Ação:_ outro cliente remove o seu nó respectivo da barreira
+- _Verificação:_ cliente não deve estar bloqueado
+
+<!-- TOC --><a name="uso-atividade-1"></a>
+## Uso (Atividade 1)
 
 A aplicação implementa um _lobby_ de jogadores simples, onde cada cliente acompanha o _status_ do _hub_: quando um
 jogador
@@ -53,6 +718,7 @@ $ git clone https://github.com/enzo-santos-ufpa/labsd
 $ cd labsd
 ```
 
+<!-- TOC --><a name="servidor"></a>
 ### Servidor
 
 Na primeira execução do servidor, adicione um arquivo chamado _zoo.cfg_ (cujo conteúdo está presente na raiz deste
@@ -70,6 +736,7 @@ Este comando irá iniciar o servidor, conforme imagem abaixo.
 
 Não feche este _prompt_ de comando enquanto a aplicação for executada.
 
+<!-- TOC --><a name="cliente"></a>
 ### Cliente
 
 Um _prompt_ de comando deve ser executado para cada cliente.
